@@ -77,6 +77,22 @@ const S = {
 };
 
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
+
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: "32px 28px", maxWidth: 360, width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🗑️</div>
+        <h3 style={{ margin: "0 0 10px", color: "#1e293b", fontWeight: 800 }}>Wirklich löschen?</h3>
+        <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24 }}>{message || "Dieser Eintrag wird unwiderruflich gelöscht."}</p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <button style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onConfirm}>Ja, löschen</button>
+          <button style={{ background: "#e2e8f0", color: "#374151", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onCancel}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
 
 function LoginGate({ onUnlock, platformPassword }) {
@@ -758,6 +774,13 @@ export default function App() {
 
   return (
     <div style={S.app}>
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
       <nav style={S.nav}>
         <span style={S.navTitle}>🎭 Treibhaus</span>
         <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Start</button>
