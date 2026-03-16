@@ -758,3 +758,35 @@ export default function App() {
         <RessortPage
           config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
           activeRessort={activeRessort}
+          setPage={setPage}
+          expandedId={expandedId} setExpandedId={setExpandedId}
+          editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
+          addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
+          newMilestone={newMilestone} setNewMilestone={setNewMilestone}
+          newCheckText={newCheckText} setNewCheckText={setNewCheckText}
+          editCheckText={editCheckText} setEditCheckText={setEditCheckText}
+          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+          filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+          searchText={searchText} setSearchText={setSearchText}
+          ressortTab={ressortTab} setRessortTab={setRessortTab}
+          saveMilestone={saveMilestone} deleteMilestone={deleteMilestone} addMilestone={addMilestone}
+        />
+      )}
+      {page === "admin" && (
+        <AdminPage
+          adminUnlocked={adminUnlocked} adminPwInput={adminPwInput} setAdminPwInput={setAdminPwInput}
+          adminPwError={adminPwError} tryAdminLogin={tryAdminLogin}
+          editConfig={editConfig} setEditConfig={setEditConfig} saveAdminConfig={saveAdminConfig}
+          newRessortLabel={newRessortLabel} setNewRessortLabel={setNewRessortLabel}
+          newRessortColor={newRessortColor} setNewRessortColor={setNewRessortColor}
+          addNewRessort={addNewRessort}
+          milestones={milestones} config={config} ressortFiles={ressortFiles}
+          navigateToRessort={navigateToRessort}
+          setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
+          setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
+          dbStatus={dbStatus}
+        />
+      )}
+    </div>
+  );
+}
