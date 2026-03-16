@@ -24,6 +24,8 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
+const PLATFORM_PASSWORD = "treibhaus2026";
+
 const STATUSES = ["Offen", "In Bearbeitung", "Erledigt"];
 const PRIORITIES = ["Niedrig", "Mittel", "Hoch"];
 
@@ -79,6 +81,34 @@ const S = {
 
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
+
+function LoginGate({ onUnlock }) {
+  const [pw, setPw] = useState("");
+  const [error, setError] = useState(false);
+  const tryLogin = () => {
+    if (pw === PLATFORM_PASSWORD) { onUnlock(); }
+    else { setError(true); setPw(""); }
+  };
+  return (
+    <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 18, padding: "40px 36px", maxWidth: 380, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
+        <div style={{ fontSize: 48, marginBottom: 10 }}>🎭</div>
+        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>Freilichtfestspiele Treibhaus</h2>
+        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>Projektmanagement 2026 – Bitte anmelden</p>
+        <input
+          style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 12, boxSizing: "border-box", textAlign: "center", letterSpacing: 2 }}
+          type="password" placeholder="Passwort eingeben..." value={pw}
+          onChange={(e) => { setPw(e.target.value); setError(false); }}
+          onKeyDown={(e) => e.key === "Enter" && tryLogin()}
+        />
+        {error && <p style={{ color: "#ef4444", fontSize: 13, marginBottom: 10 }}>❌ Falsches Passwort</p>}
+        <button
+          style={{ background: "#6c63ff", color: "#fff", border: "none", borderRadius: 8, padding: "10px 32px", fontWeight: 700, fontSize: 15, cursor: "pointer", width: "100%" }}
+          onClick={tryLogin}>Anmelden →</button>
+      </div>
+    </div>
+  );
+}
 
 function BudgetBar({ budget, used }) {
   const pct = budget > 0 ? Math.min((used / budget) * 100, 100) : 0;
@@ -595,20 +625,17 @@ export default function App() {
   const [ressortTab, setRessortTab] = useState("meilensteine");
   const [loading, setLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState("connecting");
+  const [platformUnlocked, setPlatformUnlocked] = useState(false);
 
-  // Load from Firestore on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load config
         const configDoc = await getDoc(doc(db, "app", "config"));
         if (configDoc.exists()) {
           setConfig(configDoc.data());
         } else {
           await setDoc(doc(db, "app", "config"), INIT_CONFIG);
         }
-
-        // Load milestones
         const msSnap = await getDocs(collection(db, "milestones"));
         if (msSnap.empty) {
           for (const m of INIT_MILESTONES) {
@@ -618,13 +645,10 @@ export default function App() {
         } else {
           setMilestones(msSnap.docs.map((d) => ({ ...d.data(), id: d.id })));
         }
-
-        // Load ressortFiles
         const rfSnap = await getDocs(collection(db, "ressortFiles"));
         const rf = {};
         rfSnap.docs.forEach((d) => { rf[d.id] = d.data().files || []; });
         setRessortFiles(rf);
-
         setDbStatus("connected");
       } catch (e) {
         console.error("Firebase load error:", e);
@@ -705,6 +729,10 @@ export default function App() {
     setNewRessortLabel("");
   };
 
+  if (!platformUnlocked) {
+    return <LoginGate onUnlock={() => setPlatformUnlocked(true)} />;
+  }
+
   if (loading) {
     return (
       <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -729,35 +757,4 @@ export default function App() {
       {page === "ressort" && (
         <RessortPage
           config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
-          activeRessort={activeRessort} setPage={setPage}
-          expandedId={expandedId} setExpandedId={setExpandedId}
-          editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
-          addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
-          newMilestone={newMilestone} setNewMilestone={setNewMilestone}
-          newCheckText={newCheckText} setNewCheckText={setNewCheckText}
-          editCheckText={editCheckText} setEditCheckText={setEditCheckText}
-          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-          filterPriority={filterPriority} setFilterPriority={setFilterPriority}
-          searchText={searchText} setSearchText={setSearchText}
-          ressortTab={ressortTab} setRessortTab={setRessortTab}
-          saveMilestone={saveMilestone} deleteMilestone={deleteMilestone} addMilestone={addMilestone}
-        />
-      )}
-      {page === "admin" && (
-        <AdminPage
-          adminUnlocked={adminUnlocked} adminPwInput={adminPwInput} setAdminPwInput={setAdminPwInput}
-          adminPwError={adminPwError} tryAdminLogin={tryAdminLogin}
-          editConfig={editConfig} setEditConfig={setEditConfig} saveAdminConfig={saveAdminConfig}
-          newRessortLabel={newRessortLabel} setNewRessortLabel={setNewRessortLabel}
-          newRessortColor={newRessortColor} setNewRessortColor={setNewRessortColor}
-          addNewRessort={addNewRessort}
-          milestones={milestones} config={config} ressortFiles={ressortFiles}
-          navigateToRessort={navigateToRessort}
-          setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
-          setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
-          dbStatus={dbStatus}
-        />
-      )}
-    </div>
-  );
-}
+          activeRessort={activeRessort}
