@@ -24,12 +24,11 @@ const firebaseConfig = {
 const firebaseApp = initializeApp(firebaseConfig);
 const db = getFirestore(firebaseApp);
 
-const PLATFORM_PASSWORD = "treibhaus2026";
-
 const STATUSES = ["Offen", "In Bearbeitung", "Erledigt"];
 const PRIORITIES = ["Niedrig", "Mittel", "Hoch"];
 
 const INIT_CONFIG = {
+  platformPassword: "treibhaus2026",
   siteTitle: "Freilichtfestspiele Treibhaus",
   siteSubtitle: "Projektmanagement 2026",
   premiereDate: "2026-07-01",
@@ -368,7 +367,7 @@ function AdminPage({
       {editConfig && (
         <div style={S.card}>
           <h3 style={{ margin: "0 0 14px" }}>🌐 Allgemeine Einstellungen</h3>
-          {[{ key: "siteTitle", label: "Seitentitel" }, { key: "siteSubtitle", label: "Untertitel" }, { key: "adminPassword", label: "Admin-Passwort" }, { key: "premiereDate", label: "Premiere-Datum", type: "date" }].map(({ key, label, type }) => (
+          {[{ key: "siteTitle", label: "Seitentitel" }, { key: "siteSubtitle", label: "Untertitel" }, { key: "adminPassword", label: "Admin-Passwort" }, { key: "platformPassword", label: "🔐 App-Passwort (Login beim Öffnen)" }, { key: "premiereDate", label: "Premiere-Datum", type: "date" }].map(({ key, label, type }) => (
             <div key={key}>
               <label style={S.label}>{label}</label>
               <input style={S.input} type={type || "text"} value={editConfig[key] || ""} onChange={(e) => setEditConfig({ ...editConfig, [key]: e.target.value })} />
@@ -625,17 +624,20 @@ export default function App() {
   const [ressortTab, setRessortTab] = useState("meilensteine");
   const [loading, setLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState("connecting");
-  const [platformUnlocked, setPlatformUnlocked] = useState(false);
 
+  // Load from Firestore on mount
   useEffect(() => {
     const loadData = async () => {
       try {
+        // Load config
         const configDoc = await getDoc(doc(db, "app", "config"));
         if (configDoc.exists()) {
           setConfig(configDoc.data());
         } else {
           await setDoc(doc(db, "app", "config"), INIT_CONFIG);
         }
+
+        // Load milestones
         const msSnap = await getDocs(collection(db, "milestones"));
         if (msSnap.empty) {
           for (const m of INIT_MILESTONES) {
@@ -645,10 +647,13 @@ export default function App() {
         } else {
           setMilestones(msSnap.docs.map((d) => ({ ...d.data(), id: d.id })));
         }
+
+        // Load ressortFiles
         const rfSnap = await getDocs(collection(db, "ressortFiles"));
         const rf = {};
         rfSnap.docs.forEach((d) => { rf[d.id] = d.data().files || []; });
         setRessortFiles(rf);
+
         setDbStatus("connected");
       } catch (e) {
         console.error("Firebase load error:", e);
@@ -729,10 +734,6 @@ export default function App() {
     setNewRessortLabel("");
   };
 
-  if (!platformUnlocked) {
-    return <LoginGate onUnlock={() => setPlatformUnlocked(true)} />;
-  }
-
   if (loading) {
     return (
       <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -757,8 +758,7 @@ export default function App() {
       {page === "ressort" && (
         <RessortPage
           config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
-          activeRessort={activeRessort}
-          setPage={setPage}
+          activeRessort={activeRessort} setPage={setPage}
           expandedId={expandedId} setExpandedId={setExpandedId}
           editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
           addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
