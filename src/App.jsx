@@ -7,8 +7,6 @@ import {
   setDoc,
   collection,
   getDocs,
-  addDoc,
-  updateDoc,
   deleteDoc,
 } from "firebase/firestore";
 
@@ -38,7 +36,7 @@ const INIT_CONFIG = {
     { id: "regie", label: "Regie", color: "#6c63ff", budget: 8000, verantwortlich: "" },
     { id: "ton", label: "Ton & Musik", color: "#f59e0b", budget: 5000, verantwortlich: "" },
     { id: "buehne", label: "Bühnenbild", color: "#10b981", budget: 12000, verantwortlich: "" },
-    { id: "kostüm", label: "Kostüm & Maske", color: "#ec4899", budget: 4000, verantwortlich: "" },
+    { id: "kostuem", label: "Kostüm & Maske", color: "#ec4899", budget: 4000, verantwortlich: "" },
     { id: "marketing", label: "Marketing", color: "#3b82f6", budget: 3000, verantwortlich: "" },
   ],
 };
@@ -81,12 +79,16 @@ const S = {
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
 
-function LoginGate({ onUnlock }) {
+function LoginGate({ onUnlock, platformPassword }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState(false);
   const tryLogin = () => {
-    if (pw === PLATFORM_PASSWORD) { onUnlock(); }
-    else { setError(true); setPw(""); }
+    if (pw === (platformPassword || "treibhaus2026")) {
+      onUnlock();
+    } else {
+      setError(true);
+      setPw("");
+    }
   };
   return (
     <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
@@ -263,7 +265,7 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
   );
 }
 
-function MilestoneRow({ m, ressorts, expandedId, setExpandedId, onEdit }) {
+function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
   const days = daysUntil(m.dueDate);
   const overdue = days !== null && days < 0 && m.status !== "Erledigt";
   const expanded = expandedId === m.id;
@@ -302,7 +304,7 @@ function AdminPage({
   editConfig, setEditConfig, saveAdminConfig,
   newRessortLabel, setNewRessortLabel, newRessortColor, setNewRessortColor, addNewRessort,
   milestones, config, ressortFiles,
-  navigateToRessort, setEditingMilestone, deleteMilestone,
+  navigateToRessort, deleteMilestone,
   setAdminUnlocked, setAdminPwError, dbStatus,
 }) {
   if (!adminUnlocked) {
@@ -334,7 +336,7 @@ function AdminPage({
     URL.revokeObjectURL(url);
   };
 
-  const downloadZip = () => {
+  const downloadAll = () => {
     const allFiles = [];
     config.ressorts.forEach((r) => (ressortFiles[r.id] || []).forEach((f) => allFiles.push({ ...f, ressortLabel: r.label })));
     if (allFiles.length === 0) { alert("Keine Belege vorhanden."); return; }
@@ -359,15 +361,21 @@ function AdminPage({
         <h3 style={{ margin: "0 0 14px" }}>📦 Belege & Export</h3>
         <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 14 }}>{totalFiles} Beleg{totalFiles !== 1 ? "e" : ""} in allen Ressorts gespeichert.</p>
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap" }}>
-          <button style={S.btn("#10b981")} onClick={exportExcel}>📊 Alle Belege als CSV/Excel exportieren</button>
-          <button style={S.btn("#6c63ff")} onClick={downloadZip}>📦 Alle Belege einzeln herunterladen</button>
+          <button style={S.btn("#10b981")} onClick={exportExcel}>📊 Alle Belege als CSV exportieren</button>
+          <button style={S.btn("#6c63ff")} onClick={downloadAll}>📦 Alle Belege herunterladen</button>
         </div>
       </div>
 
       {editConfig && (
         <div style={S.card}>
           <h3 style={{ margin: "0 0 14px" }}>🌐 Allgemeine Einstellungen</h3>
-          {[{ key: "siteTitle", label: "Seitentitel" }, { key: "siteSubtitle", label: "Untertitel" }, { key: "adminPassword", label: "Admin-Passwort" }, { key: "platformPassword", label: "🔐 App-Passwort (Login beim Öffnen)" }, { key: "premiereDate", label: "Premiere-Datum", type: "date" }].map(({ key, label, type }) => (
+          {[
+            { key: "siteTitle", label: "Seitentitel" },
+            { key: "siteSubtitle", label: "Untertitel" },
+            { key: "adminPassword", label: "Admin-Passwort" },
+            { key: "platformPassword", label: "🔐 App-Passwort (Login beim Öffnen)" },
+            { key: "premiereDate", label: "Premiere-Datum", type: "date" },
+          ].map(({ key, label, type }) => (
             <div key={key}>
               <label style={S.label}>{label}</label>
               <input style={S.input} type={type || "text"} value={editConfig[key] || ""} onChange={(e) => setEditConfig({ ...editConfig, [key]: e.target.value })} />
@@ -575,7 +583,7 @@ function RessortPage({
           {filtered.length === 0 ? (
             <div style={{ color: "#9ca3af", textAlign: "center", padding: 40 }}>Keine Meilensteine gefunden.</div>
           ) : (
-            filtered.map((m) => <MilestoneRow key={m.id} m={m} ressorts={config.ressorts} expandedId={expandedId} setExpandedId={setExpandedId} onEdit={(m) => { setEditingMilestone({ ...m }); setAddingMilestone(false); setEditCheckText(""); }} />)
+            filtered.map((m) => <MilestoneRow key={m.id} m={m} expandedId={expandedId} setExpandedId={setExpandedId} onEdit={(m) => { setEditingMilestone({ ...m }); setAddingMilestone(false); setEditCheckText(""); }} />)
           )}
         </div>
       )}
@@ -624,20 +632,17 @@ export default function App() {
   const [ressortTab, setRessortTab] = useState("meilensteine");
   const [loading, setLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState("connecting");
+  const [platformUnlocked, setPlatformUnlocked] = useState(false);
 
-  // Load from Firestore on mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        // Load config
         const configDoc = await getDoc(doc(db, "app", "config"));
         if (configDoc.exists()) {
           setConfig(configDoc.data());
         } else {
           await setDoc(doc(db, "app", "config"), INIT_CONFIG);
         }
-
-        // Load milestones
         const msSnap = await getDocs(collection(db, "milestones"));
         if (msSnap.empty) {
           for (const m of INIT_MILESTONES) {
@@ -647,13 +652,10 @@ export default function App() {
         } else {
           setMilestones(msSnap.docs.map((d) => ({ ...d.data(), id: d.id })));
         }
-
-        // Load ressortFiles
         const rfSnap = await getDocs(collection(db, "ressortFiles"));
         const rf = {};
         rfSnap.docs.forEach((d) => { rf[d.id] = d.data().files || []; });
         setRessortFiles(rf);
-
         setDbStatus("connected");
       } catch (e) {
         console.error("Firebase load error:", e);
@@ -734,6 +736,16 @@ export default function App() {
     setNewRessortLabel("");
   };
 
+  // ── LOGIN GATE: zeige Login-Screen bis Passwort korrekt ──
+  if (!platformUnlocked) {
+    return (
+      <LoginGate
+        platformPassword={config.platformPassword}
+        onUnlock={() => setPlatformUnlocked(true)}
+      />
+    );
+  }
+
   if (loading) {
     return (
       <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
@@ -782,7 +794,7 @@ export default function App() {
           addNewRessort={addNewRessort}
           milestones={milestones} config={config} ressortFiles={ressortFiles}
           navigateToRessort={navigateToRessort}
-          setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
+          deleteMilestone={deleteMilestone}
           setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
           dbStatus={dbStatus}
         />
