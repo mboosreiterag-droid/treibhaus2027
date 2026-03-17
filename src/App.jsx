@@ -27,8 +27,8 @@ const PRIORITIES = ["Niedrig", "Mittel", "Hoch"];
 
 const INIT_CONFIG = {
   platformPassword: "treibhaus2026",
-  siteTitle: "Freilichtfestspiele Treibhaus",
-  siteSubtitle: "Projektmanagement 2026",
+  siteTitle: "Festspiel Treibhaus e.V.",
+  siteSubtitle: "Juli 2027",
   premiereDate: "2026-07-01",
   adminPassword: "admin123",
   headerImage: "https://images.unsplash.com/photo-1507924538820-ede94a04019d?w=1200&q=80",
