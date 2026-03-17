@@ -94,8 +94,8 @@ function LoginGate({ onUnlock, platformPassword }) {
     <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: 18, padding: "40px 36px", maxWidth: 380, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 10 }}>🎭</div>
-        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>Freilichtfestspiele Treibhaus</h2>
-        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>Projektmanagement 2026 – Bitte anmelden</p>
+        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>Festspiel Treibhaus e.V.</h2>
+        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>Juli 2027 – Bitte anmelden</p>
         <input
           style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 12, boxSizing: "border-box", textAlign: "center", letterSpacing: 2 }}
           type="password" placeholder="Passwort eingeben..." value={pw}
