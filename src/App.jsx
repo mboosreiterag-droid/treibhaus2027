@@ -362,6 +362,14 @@ function AdminPage({
 
   const totalFiles = config.ressorts.reduce((s, r) => s + (ressortFiles[r.id] || []).length, 0);
 
+  const moveRessort = (i, dir) => {
+    const rs = [...editConfig.ressorts];
+    const j = i + dir;
+    if (j < 0 || j >= rs.length) return;
+    [rs[i], rs[j]] = [rs[j], rs[i]];
+    setEditConfig({ ...editConfig, ressorts: rs });
+  };
+
   return (
     <div style={S.section}>
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 10 }}>
@@ -406,10 +414,41 @@ function AdminPage({
               <img src={editConfig.headerImage} alt="Vorschau Header" style={{ width: "100%", maxHeight: 150, objectFit: "cover", borderRadius: 10, border: "1px solid #e2e8f0", marginBottom: 6 }} onError={(e) => { e.target.style.display = "none"; }} />
             )}
           </div>
+
           <h3 style={{ margin: "14px 0 10px" }}>🎭 Ressorts</h3>
+          <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>Mit ↑ ↓ kannst du die Reihenfolge der Ressorts ändern. Die Menüleiste spiegelt die Reihenfolge wider.</p>
           {editConfig.ressorts.map((r, i) => (
             <div key={r.id} style={{ marginBottom: 12, background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: "1px solid #e2e8f0" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
+                <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+                  <button
+                    title="Nach oben"
+                    disabled={i === 0}
+                    style={{
+                      background: i === 0 ? "#e2e8f0" : "#6c63ff",
+                      color: i === 0 ? "#9ca3af" : "#fff",
+                      border: "none", borderRadius: 6, width: 28, height: 24,
+                      cursor: i === 0 ? "default" : "pointer",
+                      fontWeight: 900, fontSize: 12, lineHeight: 1,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                    onClick={() => moveRessort(i, -1)}
+                  >▲</button>
+                  <button
+                    title="Nach unten"
+                    disabled={i === editConfig.ressorts.length - 1}
+                    style={{
+                      background: i === editConfig.ressorts.length - 1 ? "#e2e8f0" : "#6c63ff",
+                      color: i === editConfig.ressorts.length - 1 ? "#9ca3af" : "#fff",
+                      border: "none", borderRadius: 6, width: 28, height: 24,
+                      cursor: i === editConfig.ressorts.length - 1 ? "default" : "pointer",
+                      fontWeight: 900, fontSize: 12, lineHeight: 1,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}
+                    onClick={() => moveRessort(i, 1)}
+                  >▼</button>
+                </div>
+                <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 700, minWidth: 18, textAlign: "center" }}>{i + 1}</span>
                 <input style={{ ...S.input, flex: 2, marginBottom: 0 }} value={r.label} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], label: e.target.value }; setEditConfig({ ...editConfig, ressorts: rs }); }} />
                 <input type="color" value={r.color} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], color: e.target.value }; setEditConfig({ ...editConfig, ressorts: rs }); }} style={{ width: 36, height: 36, border: "none", borderRadius: 6, cursor: "pointer", padding: 0 }} />
                 <input style={{ ...S.input, flex: 1, marginBottom: 0 }} type="number" placeholder="Budget €" value={r.budget || ""} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], budget: parseFloat(e.target.value) || 0 }; setEditConfig({ ...editConfig, ressorts: rs }); }} />
@@ -746,96 +785,94 @@ export default function App() {
     setNewRessortColor("#6c63ff");
   };
 
-  const updateRessortFiles = async (ressortId, files
-    ) => {
-        setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
-        try {
-          await setDoc(doc(db, "ressortFiles", ressortId), { files });
-        } catch (e) { console.error("Save files error:", e); }
-      };
-    
-      const navigateToRessort = (ressortId) => {
-        setActiveRessort(ressortId);
-        setPage("ressort");
-        setRessortTab("meilensteine");
-        setFilterStatus("Alle");
-        setFilterPriority("Alle");
-        setSearchText("");
-        setEditingMilestone(null);
-        setAddingMilestone(false);
-      };
-    
-      if (loading) {
-        return (
-          <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <div style={{ textAlign: "center", color: "#fff" }}>
-              <div style={{ fontSize: 48, marginBottom: 16 }}>🎭</div>
-              <div style={{ fontSize: 18, fontWeight: 700 }}>Lade Daten...</div>
-            </div>
-          </div>
-        );
-      }
-    
-      if (!platformUnlocked) {
-        return <LoginGate onUnlock={() => setPlatformUnlocked(true)} platformPassword={config.platformPassword} />;
-      }
-    
-      return (
-        <div style={S.app}>
-          {confirmModal && (
-            <ConfirmModal
-              message={confirmModal.message}
-              onConfirm={confirmModal.onConfirm}
-              onCancel={() => setConfirmModal(null)}
-            />
-          )}
-          <nav style={S.nav}>
-            <span style={S.navTitle}>🎭 {config.siteTitle}</span>
-            <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
-            {config.ressorts.map((r) => (
-              <button key={r.id} style={S.navBtnRessort(page === "ressort" && activeRessort === r.id)} onClick={() => navigateToRessort(r.id)}>{r.label}</button>
-            ))}
-            <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
-          </nav>
-          {page === "home" && (
-            <HomePage
-              config={config} milestones={milestones} ressortFiles={ressortFiles}
-              premiereDays={premiereDays} navigateToRessort={navigateToRessort}
-            />
-          )}
-          {page === "ressort" && (
-            <RessortPage
-              config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
-              activeRessort={activeRessort} setPage={setPage}
-              expandedId={expandedId} setExpandedId={setExpandedId}
-              editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
-              addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
-              newMilestone={newMilestone} setNewMilestone={setNewMilestone}
-              newCheckText={newCheckText} setNewCheckText={setNewCheckText}
-              editCheckText={editCheckText} setEditCheckText={setEditCheckText}
-              filterStatus={filterStatus} setFilterStatus={setFilterStatus}
-              filterPriority={filterPriority} setFilterPriority={setFilterPriority}
-              searchText={searchText} setSearchText={setSearchText}
-              ressortTab={ressortTab} setRessortTab={setRessortTab}
-              saveMilestone={saveMilestone} deleteMilestone={deleteMilestone} addMilestone={addMilestone}
-            />
-          )}
-          {page === "admin" && (
-            <AdminPage
-              adminUnlocked={adminUnlocked} adminPwInput={adminPwInput} setAdminPwInput={setAdminPwInput}
-              adminPwError={adminPwError} tryAdminLogin={tryAdminLogin}
-              editConfig={editConfig} setEditConfig={setEditConfig} saveAdminConfig={saveAdminConfig}
-              newRessortLabel={newRessortLabel} setNewRessortLabel={setNewRessortLabel}
-              newRessortColor={newRessortColor} setNewRessortColor={setNewRessortColor}
-              addNewRessort={addNewRessort}
-              milestones={milestones} config={config} ressortFiles={ressortFiles}
-              navigateToRessort={navigateToRessort}
-              setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
-              setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
-              dbStatus={dbStatus}
-            />
-          )}
+  const updateRessortFiles = async (ressortId, files) => {
+    setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
+    try {
+      await setDoc(doc(db, "ressortFiles", ressortId), { files });
+    } catch (e) { console.error("Save files error:", e); }
+  };
+
+  const navigateToRessort = (ressortId) => {
+    setActiveRessort(ressortId);
+    setPage("ressort");
+    setRessortTab("meilensteine");
+    setFilterStatus("Alle");
+    setFilterPriority("Alle");
+    setSearchText("");
+    setEditingMilestone(null);
+    setAddingMilestone(false);
+  };
+
+  if (loading) {
+    return (
+      <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+        <div style={{ textAlign: "center", color: "#fff" }}>
+          <div style={{ fontSize: 48, marginBottom: 16 }}>🎭</div>
+          <div style={{ fontSize: 18, fontWeight: 700 }}>Lade Daten...</div>
         </div>
-      );
-    }
-    
+      </div>
+    );
+  }
+
+  if (!platformUnlocked) {
+    return <LoginGate onUnlock={() => setPlatformUnlocked(true)} platformPassword={config.platformPassword} />;
+  }
+
+  return (
+    <div style={S.app}>
+      {confirmModal && (
+        <ConfirmModal
+          message={confirmModal.message}
+          onConfirm={confirmModal.onConfirm}
+          onCancel={() => setConfirmModal(null)}
+        />
+      )}
+      <nav style={S.nav}>
+        <span style={S.navTitle}>🎭 {config.siteTitle}</span>
+        <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
+        {config.ressorts.map((r) => (
+          <button key={r.id} style={S.navBtnRessort(page === "ressort" && activeRessort === r.id)} onClick={() => navigateToRessort(r.id)}>{r.label}</button>
+        ))}
+        <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
+      </nav>
+      {page === "home" && (
+        <HomePage
+          config={config} milestones={milestones} ressortFiles={ressortFiles}
+          premiereDays={premiereDays} navigateToRessort={navigateToRessort}
+        />
+      )}
+      {page === "ressort" && (
+        <RessortPage
+          config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
+          activeRessort={activeRessort} setPage={setPage}
+          expandedId={expandedId} setExpandedId={setExpandedId}
+          editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
+          addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
+          newMilestone={newMilestone} setNewMilestone={setNewMilestone}
+          newCheckText={newCheckText} setNewCheckText={setNewCheckText}
+          editCheckText={editCheckText} setEditCheckText={setEditCheckText}
+          filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+          filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+          searchText={searchText} setSearchText={setSearchText}
+          ressortTab={ressortTab} setRessortTab={setRessortTab}
+          saveMilestone={saveMilestone} deleteMilestone={deleteMilestone} addMilestone={addMilestone}
+        />
+      )}
+      {page === "admin" && (
+        <AdminPage
+          adminUnlocked={adminUnlocked} adminPwInput={adminPwInput} setAdminPwInput={setAdminPwInput}
+          adminPwError={adminPwError} tryAdminLogin={tryAdminLogin}
+          editConfig={editConfig} setEditConfig={setEditConfig} saveAdminConfig={saveAdminConfig}
+          newRessortLabel={newRessortLabel} setNewRessortLabel={setNewRessortLabel}
+          newRessortColor={newRessortColor} setNewRessortColor={setNewRessortColor}
+          addNewRessort={addNewRessort}
+          milestones={milestones} config={config} ressortFiles={ressortFiles}
+          navigateToRessort={navigateToRessort}
+          setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
+          setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
+          dbStatus={dbStatus}
+        />
+      )}
+    </div>
+  );
+}
