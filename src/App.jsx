@@ -27,8 +27,8 @@ const PRIORITIES = ["Niedrig", "Mittel", "Hoch"];
 
 const INIT_CONFIG = {
   platformPassword: "treibhaus2026",
-  siteTitle: "Festspiel Treibhaus e.V.",
-  siteSubtitle: "Juli 2027",
+  siteTitle: "Freilichtfestspiele Treibhaus",
+  siteSubtitle: "Projektmanagement 2026",
   premiereDate: "2026-07-01",
   adminPassword: "admin123",
   headerImage: "https://images.unsplash.com/photo-1507924538820-ede94a04019d?w=1200&q=80",
@@ -67,9 +67,8 @@ const S = {
   app: { fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: "#f1f5f9", color: "#1e293b" },
   nav: { background: "#1e1b4b", padding: "10px 20px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 100 },
   navTitle: { color: "#a5b4fc", fontWeight: 900, fontSize: 16, marginRight: 12 },
-  navBtn: (active) => ({ background: active ? "#6c63ff" : "transparent", color: active ? "#fff" : "#c7d2fe", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }),
-  // ── NEU: Ressort-Buttons mit hellem Blau-Hintergrund ──
   navBtnRessort: (active) => ({ background: active ? "#6c63ff" : "rgba(99,120,255,0.22)", color: active ? "#fff" : "#c7d2fe", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }),
+  navBtn: (active) => ({ background: active ? "#6c63ff" : "transparent", color: active ? "#fff" : "#c7d2fe", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }),
   section: { padding: "24px 20px", maxWidth: 960, margin: "0 auto" },
   card: { background: "#fff", borderRadius: 14, padding: "18px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", marginBottom: 16 },
   label: { fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 4, display: "block" },
@@ -80,6 +79,22 @@ const S = {
 
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
+
+function ConfirmModal({ message, onConfirm, onCancel }) {
+  return (
+    <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ background: "#fff", borderRadius: 16, padding: "32px 28px", maxWidth: 360, width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>🗑️</div>
+        <h3 style={{ margin: "0 0 10px", color: "#1e293b", fontWeight: 800 }}>Wirklich löschen?</h3>
+        <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24 }}>{message || "Dieser Eintrag wird unwiderruflich gelöscht."}</p>
+        <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
+          <button style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onConfirm}>Ja, löschen</button>
+          <button style={{ background: "#e2e8f0", color: "#374151", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onCancel}>Abbrechen</button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 function LoginGate({ onUnlock, platformPassword }) {
   const [pw, setPw] = useState("");
@@ -96,8 +111,8 @@ function LoginGate({ onUnlock, platformPassword }) {
     <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: 18, padding: "40px 36px", maxWidth: 380, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
         <div style={{ fontSize: 48, marginBottom: 10 }}>🎭</div>
-        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>Festspiel Treibhaus e.V.</h2>
-        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>Juli 2027 – Bitte anmelden</p>
+        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>Freilichtfestspiele Treibhaus</h2>
+        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>Projektmanagement 2026 – Bitte anmelden</p>
         <input
           style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 12, boxSizing: "border-box", textAlign: "center", letterSpacing: 2 }}
           type="password" placeholder="Passwort eingeben..." value={pw}
@@ -635,6 +650,9 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [dbStatus, setDbStatus] = useState("connecting");
   const [platformUnlocked, setPlatformUnlocked] = useState(false);
+  const [confirmModal, setConfirmModal] = useState(null);
+
+  const askConfirm = (message, onConfirm) => setConfirmModal({ message, onConfirm });
 
   useEffect(() => {
     const loadData = async () => {
@@ -695,72 +713,129 @@ export default function App() {
     } catch (e) { console.error("Save milestone error:", e); }
   };
 
-  const deleteMilestone = async (id) => {
-    if (!window.confirm("Meilenstein wirklich löschen?")) return;
-    setMilestones((prev) => prev.filter((m) => m.id !== id));
-    setEditingMilestone(null);
-    try {
-      await deleteDoc(doc(db, "milestones", String(id)));
-    } catch (e) { console.error("Delete milestone error:", e); }
+  const deleteMilestone = (id) => {
+    askConfirm("Der Meilenstein wird unwiderruflich gelöscht.", async () => {
+      setConfirmModal(null);
+      setMilestones((prev) => prev.filter((m) => m.id !== id));
+      setEditingMilestone(null);
+      try {
+        await deleteDoc(doc(db, "milestones", String(id)));
+      } catch (e) { console.error("Delete milestone error:", e); }
+    });
   };
 
   const addMilestone = async () => {
     if (!newMilestone.title.trim()) return;
-    const newId = String(Date.now());
-    const m = { ...newMilestone, id: newId };
+    const id = String(Date.now());
+    const m = { ...newMilestone, id };
     setMilestones((prev) => [...prev, m]);
     setAddingMilestone(false);
     setNewMilestone(makeEmptyMilestone(activeRessort));
     setNewCheckText("");
     try {
-      await setDoc(doc(db, "milestones", newId), m);
+      await setDoc(doc(db, "milestones", id), m);
     } catch (e) { console.error("Add milestone error:", e); }
-  };
-
-  const navigateToRessort = (ressortId) => {
-    setActiveRessort(ressortId); setPage("ressort");
-    setAddingMilestone(false); setEditingMilestone(null); setExpandedId(null);
-    setFilterStatus("Alle"); setFilterPriority("Alle"); setSearchText("");
-    setRessortTab("meilensteine");
-  };
-
-  const updateRessortFiles = async (ressortId, files) => {
-    setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
-    try {
-      await setDoc(doc(db, "ressortFiles", ressortId), { files });
-    } catch (e) { console.error("Save ressortFiles error:", e); }
   };
 
   const addNewRessort = () => {
     if (!newRessortLabel.trim()) return;
-    const id = newRessortLabel.replace(/[^a-z0-9]/gi, "").toLowerCase() + Date.now();
-    setEditConfig({ ...editConfig, ressorts: [...editConfig.ressorts, { id, label: newRessortLabel.trim(), color: newRessortColor, budget: 0, verantwortlich: "" }] });
+    const id = newRessortLabel.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
+    const newR = { id, label: newRessortLabel, color: newRessortColor, budget: 0, verantwortlich: "" };
+    setEditConfig((prev) => ({ ...prev, ressorts: [...prev.ressorts, newR] }));
     setNewRessortLabel("");
+    setNewRessortColor("#6c63ff");
   };
 
-  if (!platformUnlocked) {
-    return (
-      <LoginGate
-        platformPassword={config.platformPassword}
-        onUnlock={() => setPlatformUnlocked(true)}
-      />
-    );
-  }
-
-  if (loading) {
-    return (
-      <div style={{ ...S.app, display: "flex", alignItems: "center", justifyContent: "center", flexDirection: "column", gap: 16 }}>
-        <div style={{ fontSize: 48 }}>🔥</div>
-        <div style={{ fontSize: 18, fontWeight: 700, color: "#6c63ff" }}>Verbinde mit Firebase...</div>
-        <div style={{ fontSize: 13, color: "#9ca3af" }}>Daten werden geladen</div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={S.app}>
-      <nav style={S.nav}>
-        <span style={S.navTitle}>🎭 Treibhaus</span>
-        <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Start</button>
-        {config.ressorts.map((r) => (
-          //
+  const updateRessortFiles = async (ressortId, files
+    ) => {
+        setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
+        try {
+          await setDoc(doc(db, "ressortFiles", ressortId), { files });
+        } catch (e) { console.error("Save files error:", e); }
+      };
+    
+      const navigateToRessort = (ressortId) => {
+        setActiveRessort(ressortId);
+        setPage("ressort");
+        setRessortTab("meilensteine");
+        setFilterStatus("Alle");
+        setFilterPriority("Alle");
+        setSearchText("");
+        setEditingMilestone(null);
+        setAddingMilestone(false);
+      };
+    
+      if (loading) {
+        return (
+          <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <div style={{ textAlign: "center", color: "#fff" }}>
+              <div style={{ fontSize: 48, marginBottom: 16 }}>🎭</div>
+              <div style={{ fontSize: 18, fontWeight: 700 }}>Lade Daten...</div>
+            </div>
+          </div>
+        );
+      }
+    
+      if (!platformUnlocked) {
+        return <LoginGate onUnlock={() => setPlatformUnlocked(true)} platformPassword={config.platformPassword} />;
+      }
+    
+      return (
+        <div style={S.app}>
+          {confirmModal && (
+            <ConfirmModal
+              message={confirmModal.message}
+              onConfirm={confirmModal.onConfirm}
+              onCancel={() => setConfirmModal(null)}
+            />
+          )}
+          <nav style={S.nav}>
+            <span style={S.navTitle}>🎭 {config.siteTitle}</span>
+            <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
+            {config.ressorts.map((r) => (
+              <button key={r.id} style={S.navBtnRessort(page === "ressort" && activeRessort === r.id)} onClick={() => navigateToRessort(r.id)}>{r.label}</button>
+            ))}
+            <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
+          </nav>
+          {page === "home" && (
+            <HomePage
+              config={config} milestones={milestones} ressortFiles={ressortFiles}
+              premiereDays={premiereDays} navigateToRessort={navigateToRessort}
+            />
+          )}
+          {page === "ressort" && (
+            <RessortPage
+              config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
+              activeRessort={activeRessort} setPage={setPage}
+              expandedId={expandedId} setExpandedId={setExpandedId}
+              editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
+              addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
+              newMilestone={newMilestone} setNewMilestone={setNewMilestone}
+              newCheckText={newCheckText} setNewCheckText={setNewCheckText}
+              editCheckText={editCheckText} setEditCheckText={setEditCheckText}
+              filterStatus={filterStatus} setFilterStatus={setFilterStatus}
+              filterPriority={filterPriority} setFilterPriority={setFilterPriority}
+              searchText={searchText} setSearchText={setSearchText}
+              ressortTab={ressortTab} setRessortTab={setRessortTab}
+              saveMilestone={saveMilestone} deleteMilestone={deleteMilestone} addMilestone={addMilestone}
+            />
+          )}
+          {page === "admin" && (
+            <AdminPage
+              adminUnlocked={adminUnlocked} adminPwInput={adminPwInput} setAdminPwInput={setAdminPwInput}
+              adminPwError={adminPwError} tryAdminLogin={tryAdminLogin}
+              editConfig={editConfig} setEditConfig={setEditConfig} saveAdminConfig={saveAdminConfig}
+              newRessortLabel={newRessortLabel} setNewRessortLabel={setNewRessortLabel}
+              newRessortColor={newRessortColor} setNewRessortColor={setNewRessortColor}
+              addNewRessort={addNewRessort}
+              milestones={milestones} config={config} ressortFiles={ressortFiles}
+              navigateToRessort={navigateToRessort}
+              setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
+              setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
+              dbStatus={dbStatus}
+            />
+          )}
+        </div>
+      );
+    }
+    
