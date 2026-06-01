@@ -42,8 +42,8 @@ const INIT_CONFIG = {
 };
 
 const INIT_MILESTONES = [
-  { id: "1", ressort: "regie", title: "Konzept fertiggestellt", dueDate: "2026-03-20", status: "Erledigt", priority: "Hoch", verantwortlich: "", checklist: [{ text: "Drehbuch", done: true }, { text: "Regiebuch", done: true }], files: [], milestoneFiles: [] },
-  { id: "2", ressort: "regie", title: "Probenplan erstellt", dueDate: "2026-04-01", status: "In Bearbeitung", priority: "Mittel", verantwortlich: "", checklist: [{ text: "Raumplan", done: true }, { text: "Zeitplan", done: false }], files: [], milestoneFiles: [] },
+  { id: "1", ressort: "regie", title: "Konzept fertiggestellt", dueDate: "2026-03-20", status: "Erledigt", priority: "Hoch", verantwortlich: "", checklist: [{ text: "Drehbuch", done: true, verantwortlich: "" }, { text: "Regiebuch", done: true, verantwortlich: "" }], files: [], milestoneFiles: [] },
+  { id: "2", ressort: "regie", title: "Probenplan erstellt", dueDate: "2026-04-01", status: "In Bearbeitung", priority: "Mittel", verantwortlich: "", checklist: [{ text: "Raumplan", done: true, verantwortlich: "" }, { text: "Zeitplan", done: false, verantwortlich: "" }], files: [], milestoneFiles: [] },
   { id: "3", ressort: "buehne", title: "Bühnenbild-Entwurf", dueDate: "2026-03-30", status: "Erledigt", priority: "Hoch", verantwortlich: "", checklist: [], files: [], milestoneFiles: [] },
   { id: "4", ressort: "marketing", title: "Plakat gestaltet", dueDate: "2026-04-01", status: "Erledigt", priority: "Hoch", verantwortlich: "", checklist: [], files: [], milestoneFiles: [] },
   { id: "5", ressort: "ton", title: "Soundkonzept", dueDate: "2026-03-25", status: "Erledigt", priority: "Hoch", verantwortlich: "", checklist: [], files: [], milestoneFiles: [] },
@@ -238,14 +238,16 @@ function MilestoneFileUpload({ files, onChange }) {
   );
 }
 
-function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, setCheckText, ressorts }) {
+function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, setCheckText, checkVerantwortlich, setCheckVerantwortlich, ressorts }) {
   const addCheck = () => {
     if (!checkText.trim()) return;
-    setData({ ...data, checklist: [...data.checklist, { text: checkText.trim(), done: false }] });
+    setData({ ...data, checklist: [...data.checklist, { text: checkText.trim(), done: false, verantwortlich: checkVerantwortlich.trim() }] });
     setCheckText("");
+    setCheckVerantwortlich("");
   };
   const toggleCheck = (i) => setData({ ...data, checklist: data.checklist.map((c, idx) => idx === i ? { ...c, done: !c.done } : c) });
   const removeCheck = (i) => setData({ ...data, checklist: data.checklist.filter((_, idx) => idx !== i) });
+  const updateCheckField = (i, field, value) => setData({ ...data, checklist: data.checklist.map((c, idx) => idx === i ? { ...c, [field]: value } : c) });
   return (
     <div style={{ ...S.card, border: "2px solid #6c63ff", marginBottom: 16 }}>
       <h3 style={{ margin: "0 0 14px", color: "#6c63ff" }}>{data.id ? "Meilenstein bearbeiten" : "Neuer Meilenstein"}</h3>
@@ -259,18 +261,51 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
       </div>
       <label style={S.label}>Verantwortlich</label>
       <input style={S.input} value={data.verantwortlich || ""} onChange={(e) => setData({ ...data, verantwortlich: e.target.value })} placeholder="Name der verantwortlichen Person" />
+
       <label style={S.label}>Checkliste</label>
       {data.checklist.map((c, i) => (
-        <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-          <input type="checkbox" checked={c.done} onChange={() => toggleCheck(i)} />
-          <span style={{ flex: 1, fontSize: 13, textDecoration: c.done ? "line-through" : "none", color: c.done ? "#9ca3af" : "#374151" }}>{c.text}</span>
-          <button onClick={() => removeCheck(i)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }}>✕</button>
+        <div key={i} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: c.verantwortlich !== undefined ? 6 : 0 }}>
+            <input type="checkbox" checked={c.done} onChange={() => toggleCheck(i)} />
+            <span style={{ flex: 1, fontSize: 13, textDecoration: c.done ? "line-through" : "none", color: c.done ? "#9ca3af" : "#374151" }}>{c.text}</span>
+            <button onClick={() => removeCheck(i)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }}>✕</button>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>👤 Verantwortlich:</span>
+            <input
+              style={{ ...S.input, marginBottom: 0, fontSize: 12, padding: "4px 8px", flex: 1 }}
+              placeholder="Name eingeben..."
+              value={c.verantwortlich || ""}
+              onChange={(e) => updateCheckField(i, "verantwortlich", e.target.value)}
+            />
+          </div>
         </div>
       ))}
-      <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-        <input style={{ ...S.input, flex: 1, marginBottom: 0 }} placeholder="Neuer Checkpunkt..." value={checkText} onChange={(e) => setCheckText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
-        <button style={S.btn("#6c63ff")} onClick={addCheck}>+</button>
+
+      <div style={{ background: "#f0f4ff", border: "1.5px dashed #a5b4fc", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
+        <div style={{ fontSize: 11, color: "#6c63ff", fontWeight: 700, marginBottom: 6 }}>+ Neuer Checkpunkt</div>
+        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
+          <input
+            style={{ ...S.input, flex: 1, marginBottom: 0 }}
+            placeholder="Checkpunkt-Bezeichnung..."
+            value={checkText}
+            onChange={(e) => setCheckText(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addCheck()}
+          />
+        </div>
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>👤 Verantwortlich:</span>
+          <input
+            style={{ ...S.input, flex: 1, marginBottom: 0, fontSize: 13 }}
+            placeholder="Name eingeben..."
+            value={checkVerantwortlich}
+            onChange={(e) => setCheckVerantwortlich(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && addCheck()}
+          />
+          <button style={S.btn("#6c63ff")} onClick={addCheck}>+ Hinzufügen</button>
+        </div>
       </div>
+
       <label style={S.label}>Anhänge</label>
       <MilestoneFileUpload files={data.milestoneFiles || []} onChange={(f) => setData({ ...data, milestoneFiles: f })} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -305,12 +340,180 @@ function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
       {expanded && m.checklist.length > 0 && (
         <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
           {m.checklist.map((c, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
-              <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none" }}>{c.text}</span>
+              <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
+              {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
             </div>
           ))}
         </div>
+      )}
+    </div>
+  );
+}
+
+function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
+  const [nameInput, setNameInput] = useState("");
+  const [searchedName, setSearchedName] = useState("");
+  const [expandedIds, setExpandedIds] = useState({});
+
+  const toggleExpanded = (key) => {
+    setExpandedIds((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
+
+  const handleSearch = () => { setSearchedName(nameInput.trim()); setExpandedIds({}); };
+
+  const nameLower = searchedName ? searchedName.toLowerCase() : "";
+
+  const filteredMilestones = searchedName
+    ? milestones.filter((m) => m.verantwortlich && m.verantwortlich.toLowerCase().includes(nameLower))
+    : [];
+
+  const filteredChecklistItems = searchedName
+    ? milestones
+        .map((m) => {
+          const checks = (m.checklist || []).filter((c) => c.verantwortlich && c.verantwortlich.toLowerCase().includes(nameLower));
+          if (checks.length === 0) return null;
+          return { milestone: m, checks };
+        })
+        .filter(Boolean)
+    : [];
+
+  const groupedMilestones = config.ressorts
+    .map((r) => ({ ressort: r, items: filteredMilestones.filter((m) => m.ressort === r.id) }))
+    .filter((g) => g.items.length > 0);
+
+  const groupedChecklist = config.ressorts
+    .map((r) => ({ ressort: r, items: filteredChecklistItems.filter((x) => x.milestone.ressort === r.id) }))
+    .filter((g) => g.items.length > 0);
+
+  const doneCount = filteredMilestones.filter((m) => m.status === "Erledigt").length;
+  const overdueCount = filteredMilestones.filter((m) => m.dueDate && daysUntil(m.dueDate) < 0 && m.status !== "Erledigt").length;
+
+  const totalChecklistCount = filteredChecklistItems.reduce((s, x) => s + (x.checks?.length || 0), 0);
+
+  return (
+    <div style={S.section}>
+      <h2 style={{ margin: "0 0 6px", fontWeight: 900 }}>👤 Meine Aufgaben</h2>
+      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>Gib deinen Namen ein, um alle Meilensteine zu sehen, für die du verantwortlich bist – und zusätzlich alle Checkpunkte, die dir zugewiesen sind.</p>
+      <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
+        <input style={{ ...S.input, flex: 1, minWidth: 220, marginBottom: 0 }} placeholder="Deinen Namen eingeben..." value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
+        <button style={S.btn("#6c63ff")} onClick={handleSearch}>🔍 Suchen</button>
+        {searchedName && <button style={S.btn("#6b7280")} onClick={() => { setSearchedName(""); setNameInput(""); setExpandedIds({}); }}>✕ Zurücksetzen</button>}
+      </div>
+
+      {searchedName && filteredMilestones.length === 0 && totalChecklistCount === 0 && (
+        <div style={{ ...S.card, textAlign: "center", color: "#9ca3af", padding: 40 }}>Keine Aufgaben für „{searchedName}" gefunden.</div>
+      )}
+
+      {searchedName && (filteredMilestones.length > 0 || totalChecklistCount > 0) && (
+        <>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 20 }}>
+            {[
+              { label: "Meilensteine", value: filteredMilestones.length, color: "#6c63ff" },
+              { label: "Erledigt", value: doneCount, color: "#10b981" },
+              { label: "Überfällig", value: overdueCount, color: "#ef4444" },
+              { label: "Checkpunkte", value: totalChecklistCount, color: "#3b82f6" },
+            ].map((stat) => (
+              <div key={stat.label} style={{ ...S.card, textAlign: "center", borderTop: `4px solid ${stat.color}`, marginBottom: 0 }}>
+                <div style={{ fontSize: 26, fontWeight: 900, color: stat.color }}>{stat.value}</div>
+                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {filteredMilestones.length > 0 && (
+            <div style={{ ...S.card, marginBottom: 16, borderLeft: "4px solid #6c63ff" }}>
+              <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#6c63ff" }}>📌 Meilensteine</h3>
+              {groupedMilestones.map(({ ressort, items }) => (
+                <div key={ressort.id} style={{ marginBottom: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: ressort.color, flexShrink: 0 }} />
+                    <h4 style={{ margin: 0, fontWeight: 800, color: ressort.color, fontSize: 14 }}>{ressort.label}</h4>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>{items.length} Aufgabe{items.length !== 1 ? "n" : ""}</span>
+                    <button style={{ ...S.btn(ressort.color), padding: "3px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => navigateToRessort(ressort.id)}>→ Ressort öffnen</button>
+                  </div>
+
+                  {items.map((m) => {
+                    const days = daysUntil(m.dueDate);
+                    const overdue = days !== null && days < 0 && m.status !== "Erledigt";
+                    const expanded = !!expandedIds[`ms_${m.id}`];
+                    const done = (m.checklist || []).filter((c) => c.done).length;
+                    return (
+                      <div key={m.id} style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[m.status]}`, marginBottom: 10, cursor: "pointer" }} onClick={() => toggleExpanded(`ms_${m.id}`)}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{m.title}</span>
+                          {m.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {m.verantwortlich}</span>}
+                          {(m.checklist || []).length > 0 && <span style={{ fontSize: 11, color: "#6b7280" }}>{done}/{(m.checklist || []).length} ✓</span>}
+                          <span style={S.badge(PRIORITY_COLOR[m.priority])}>{m.priority}</span>
+                          <span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span>
+                          {m.dueDate && <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>{overdue ? "⚠️ " : "📅 "}{m.dueDate}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ` (${days}d)`}</span>}
+                        </div>
+                        {expanded && (m.checklist || []).length > 0 && (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
+                            {(m.checklist || []).map((c, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
+                                <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
+                                {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+
+          {totalChecklistCount > 0 && (
+            <div style={{ ...S.card, marginBottom: 16, borderLeft: "4px solid #3b82f6" }}>
+              <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#3b82f6" }}>✅ Checkpunkte (dir zugewiesen)</h3>
+              {groupedChecklist.map(({ ressort, items }) => (
+                <div key={ressort.id} style={{ marginBottom: 18 }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
+                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: ressort.color, flexShrink: 0 }} />
+                    <h4 style={{ margin: 0, fontWeight: 800, color: ressort.color, fontSize: 14 }}>{ressort.label}</h4>
+                    <span style={{ fontSize: 12, color: "#6b7280" }}>{items.reduce((s, x) => s + (x.checks?.length || 0), 0)} Checkpunkt{items.reduce((s, x) => s + (x.checks?.length || 0), 0) !== 1 ? "e" : ""}</span>
+                    <button style={{ ...S.btn(ressort.color), padding: "3px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => navigateToRessort(ressort.id)}>→ Ressort öffnen</button>
+                  </div>
+
+                  {items.map(({ milestone, checks }) => {
+                    const days = daysUntil(milestone.dueDate);
+                    const overdue = days !== null && days < 0 && milestone.status !== "Erledigt";
+                    const expanded = !!expandedIds[`cp_${milestone.id}`];
+                    return (
+                      <div key={milestone.id} style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[milestone.status]}`, marginBottom: 10, cursor: "pointer" }} onClick={() => toggleExpanded(`cp_${milestone.id}`)}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+                          <span style={{ flex: 1, fontWeight: 800, fontSize: 14 }}>{milestone.title}</span>
+                          {milestone.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {milestone.verantwortlich}</span>}
+                          <span style={S.badge(PRIORITY_COLOR[milestone.priority])}>{milestone.priority}</span>
+                          <span style={S.badge(STATUS_COLOR[milestone.status])}>{milestone.status}</span>
+                          {milestone.dueDate && <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>{overdue ? "⚠️ " : "📅 "}{milestone.dueDate}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ` (${days}d)`}</span>}
+                          <span style={{ fontSize: 12, color: "#6b7280" }}>{checks.length} Checkpunkt{checks.length !== 1 ? "e" : ""}</span>
+                        </div>
+
+                        {expanded && (
+                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
+                            {checks.map((c, i) => (
+                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                                <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
+                                <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
+                                {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              ))}
+            </div>
+          )}
+        </>
       )}
     </div>
   );
@@ -421,32 +624,8 @@ function AdminPage({
             <div key={r.id} style={{ marginBottom: 12, background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: "1px solid #e2e8f0" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <button
-                    title="Nach oben"
-                    disabled={i === 0}
-                    style={{
-                      background: i === 0 ? "#e2e8f0" : "#6c63ff",
-                      color: i === 0 ? "#9ca3af" : "#fff",
-                      border: "none", borderRadius: 6, width: 28, height: 24,
-                      cursor: i === 0 ? "default" : "pointer",
-                      fontWeight: 900, fontSize: 12, lineHeight: 1,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                    onClick={() => moveRessort(i, -1)}
-                  >▲</button>
-                  <button
-                    title="Nach unten"
-                    disabled={i === editConfig.ressorts.length - 1}
-                    style={{
-                      background: i === editConfig.ressorts.length - 1 ? "#e2e8f0" : "#6c63ff",
-                      color: i === editConfig.ressorts.length - 1 ? "#9ca3af" : "#fff",
-                      border: "none", borderRadius: 6, width: 28, height: 24,
-                      cursor: i === editConfig.ressorts.length - 1 ? "default" : "pointer",
-                      fontWeight: 900, fontSize: 12, lineHeight: 1,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                    }}
-                    onClick={() => moveRessort(i, 1)}
-                  >▼</button>
+                  <button title="Nach oben" disabled={i === 0} style={{ background: i === 0 ? "#e2e8f0" : "#6c63ff", color: i === 0 ? "#9ca3af" : "#fff", border: "none", borderRadius: 6, width: 28, height: 24, cursor: i === 0 ? "default" : "pointer", fontWeight: 900, fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => moveRessort(i, -1)}>▲</button>
+                  <button title="Nach unten" disabled={i === editConfig.ressorts.length - 1} style={{ background: i === editConfig.ressorts.length - 1 ? "#e2e8f0" : "#6c63ff", color: i === editConfig.ressorts.length - 1 ? "#9ca3af" : "#fff", border: "none", borderRadius: 6, width: 28, height: 24, cursor: i === editConfig.ressorts.length - 1 ? "default" : "pointer", fontWeight: 900, fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => moveRessort(i, 1)}>▼</button>
                 </div>
                 <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 700, minWidth: 18, textAlign: "center" }}>{i + 1}</span>
                 <input style={{ ...S.input, flex: 2, marginBottom: 0 }} value={r.label} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], label: e.target.value }; setEditConfig({ ...editConfig, ressorts: rs }); }} />
@@ -583,7 +762,9 @@ function RessortPage({
   addingMilestone, setAddingMilestone,
   newMilestone, setNewMilestone,
   newCheckText, setNewCheckText,
+  newCheckVerantwortlich, setNewCheckVerantwortlich,
   editCheckText, setEditCheckText,
+  editCheckVerantwortlich, setEditCheckVerantwortlich,
   filterStatus, setFilterStatus,
   filterPriority, setFilterPriority,
   searchText, setSearchText,
@@ -624,7 +805,7 @@ function RessortPage({
       {ressortTab === "meilensteine" && (
         <div>
           <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
-            <button style={S.btn(ressort.color)} onClick={() => { setAddingMilestone(true); setEditingMilestone(null); setNewMilestone(makeEmptyMilestone(activeRessort)); setNewCheckText(""); }}>+ Meilenstein</button>
+            <button style={S.btn(ressort.color)} onClick={() => { setAddingMilestone(true); setEditingMilestone(null); setNewMilestone(makeEmptyMilestone(activeRessort)); setNewCheckText(""); setNewCheckVerantwortlich(""); }}>+ Meilenstein</button>
           </div>
           <div style={{ display: "flex", gap: 8, marginBottom: 14, flexWrap: "wrap" }}>
             <input style={{ ...S.input, width: 180, marginBottom: 0 }} placeholder="🔍 Suchen..." value={searchText} onChange={(e) => setSearchText(e.target.value)} />
@@ -634,12 +815,36 @@ function RessortPage({
               <button style={S.btn("#6b7280")} onClick={() => { setFilterStatus("Alle"); setFilterPriority("Alle"); setSearchText(""); }}>✕ Reset</button>
             )}
           </div>
-          {addingMilestone && <MilestoneForm data={newMilestone} setData={setNewMilestone} onSave={addMilestone} onCancel={() => { setAddingMilestone(false); setNewCheckText(""); }} checkText={newCheckText} setCheckText={setNewCheckText} ressorts={config.ressorts} />}
-          {editingMilestone && <MilestoneForm data={editingMilestone} setData={setEditingMilestone} onSave={() => saveMilestone(editingMilestone)} onCancel={() => { setEditingMilestone(null); setEditCheckText(""); }} onDelete={() => deleteMilestone(editingMilestone.id)} checkText={editCheckText} setCheckText={setEditCheckText} ressorts={config.ressorts} />}
+          {addingMilestone && (
+            <MilestoneForm
+              data={newMilestone} setData={setNewMilestone}
+              onSave={addMilestone}
+              onCancel={() => { setAddingMilestone(false); setNewCheckText(""); setNewCheckVerantwortlich(""); }}
+              checkText={newCheckText} setCheckText={setNewCheckText}
+              checkVerantwortlich={newCheckVerantwortlich} setCheckVerantwortlich={setNewCheckVerantwortlich}
+              ressorts={config.ressorts}
+            />
+          )}
+          {editingMilestone && (
+            <MilestoneForm
+              data={editingMilestone} setData={setEditingMilestone}
+              onSave={() => saveMilestone(editingMilestone)}
+              onCancel={() => { setEditingMilestone(null); setEditCheckText(""); setEditCheckVerantwortlich(""); }}
+              onDelete={() => deleteMilestone(editingMilestone.id)}
+              checkText={editCheckText} setCheckText={setEditCheckText}
+              checkVerantwortlich={editCheckVerantwortlich} setCheckVerantwortlich={setEditCheckVerantwortlich}
+              ressorts={config.ressorts}
+            />
+          )}
           {filtered.length === 0 ? (
             <div style={{ color: "#9ca3af", textAlign: "center", padding: 40 }}>Keine Meilensteine gefunden.</div>
           ) : (
-            filtered.map((m) => <MilestoneRow key={m.id} m={m} expandedId={expandedId} setExpandedId={setExpandedId} onEdit={(m) => { setEditingMilestone({ ...m }); setAddingMilestone(false); setEditCheckText(""); }} />)
+            filtered.map((m) => (
+              <MilestoneRow
+                key={m.id} m={m} expandedId={expandedId} setExpandedId={setExpandedId}
+                onEdit={(m) => { setEditingMilestone({ ...m }); setAddingMilestone(false); setEditCheckText(""); setEditCheckVerantwortlich(""); }}
+              />
+            ))
           )}
         </div>
       )}
@@ -681,7 +886,9 @@ export default function App() {
   const [addingMilestone, setAddingMilestone] = useState(false);
   const [newMilestone, setNewMilestone] = useState(makeEmptyMilestone("regie"));
   const [newCheckText, setNewCheckText] = useState("");
+  const [newCheckVerantwortlich, setNewCheckVerantwortlich] = useState("");
   const [editCheckText, setEditCheckText] = useState("");
+  const [editCheckVerantwortlich, setEditCheckVerantwortlich] = useState("");
   const [filterStatus, setFilterStatus] = useState("Alle");
   const [filterPriority, setFilterPriority] = useState("Alle");
   const [searchText, setSearchText] = useState("");
@@ -746,7 +953,7 @@ export default function App() {
   const saveMilestone = async (m) => {
     if (!m.title.trim()) return;
     setMilestones((prev) => prev.map((x) => x.id === m.id ? m : x));
-    setEditingMilestone(null); setEditCheckText("");
+    setEditingMilestone(null); setEditCheckText(""); setEditCheckVerantwortlich("");
     try {
       await setDoc(doc(db, "milestones", String(m.id)), m);
     } catch (e) { console.error("Save milestone error:", e); }
@@ -771,6 +978,7 @@ export default function App() {
     setAddingMilestone(false);
     setNewMilestone(makeEmptyMilestone(activeRessort));
     setNewCheckText("");
+    setNewCheckVerantwortlich("");
     try {
       await setDoc(doc(db, "milestones", id), m);
     } catch (e) { console.error("Add milestone error:", e); }
@@ -830,16 +1038,17 @@ export default function App() {
       <nav style={S.nav}>
         <span style={S.navTitle}>🎭 {config.siteTitle}</span>
         <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
+        <button style={S.navBtn(page === "meineaufgaben")} onClick={() => setPage("meineaufgaben")}>👤 Meine Aufgaben</button>
         {config.ressorts.map((r) => (
           <button key={r.id} style={S.navBtnRessort(page === "ressort" && activeRessort === r.id)} onClick={() => navigateToRessort(r.id)}>{r.label}</button>
         ))}
         <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
       </nav>
       {page === "home" && (
-        <HomePage
-          config={config} milestones={milestones} ressortFiles={ressortFiles}
-          premiereDays={premiereDays} navigateToRessort={navigateToRessort}
-        />
+        <HomePage config={config} milestones={milestones} ressortFiles={ressortFiles} premiereDays={premiereDays} navigateToRessort={navigateToRessort} />
+      )}
+      {page === "meineaufgaben" && (
+        <MeineAufgabenPage config={config} milestones={milestones} navigateToRessort={navigateToRessort} />
       )}
       {page === "ressort" && (
         <RessortPage
@@ -850,7 +1059,9 @@ export default function App() {
           addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
           newMilestone={newMilestone} setNewMilestone={setNewMilestone}
           newCheckText={newCheckText} setNewCheckText={setNewCheckText}
+          newCheckVerantwortlich={newCheckVerantwortlich} setNewCheckVerantwortlich={setNewCheckVerantwortlich}
           editCheckText={editCheckText} setEditCheckText={setEditCheckText}
+          editCheckVerantwortlich={editCheckVerantwortlich} setEditCheckVerantwortlich={setEditCheckVerantwortlich}
           filterStatus={filterStatus} setFilterStatus={setFilterStatus}
           filterPriority={filterPriority} setFilterPriority={setFilterPriority}
           searchText={searchText} setSearchText={setSearchText}
