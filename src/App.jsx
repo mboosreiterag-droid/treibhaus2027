@@ -656,10 +656,12 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
               </thead>
               <tbody>
                 {filteredChecklistItems.map(({ milestone, checks }) => {
-                  const days = daysUntil(milestone.dueDate);
-                  const overdue = days !== null && days < 0 && milestone.status !== "Erledigt";
                   const r = config.ressorts.find((x) => x.id === milestone.ressort);
-                  return checks.map((c, i) => (
+                  return checks.map((c, i) => {
+                    const effectiveDue = (c && c.dueDate) ? c.dueDate : milestone.dueDate;
+                    const d = daysUntil(effectiveDue);
+                    const overdue = d !== null && d < 0 && milestone.status !== "Erledigt";
+                    return (
                     <tr key={`${milestone.id}-${i}`} style={{ background: overdue ? "#fff5f5" : "transparent" }}>
                       {i === 0 ? (
                         <td style={{ ...tdStyle, verticalAlign: "top" }} rowSpan={checks.length}>
@@ -676,16 +678,9 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                         {c.done ? "✅ " : "⬜ "}{c.text}
                       </td>
                       <td style={{ ...tdStyle, color: "#6b7280", fontSize: 12 }}>{c.verantwortlich || "–"}</td>
-                      {(() => {
-                        const effectiveDue = (c && c.dueDate) ? c.dueDate : milestone.dueDate;
-                        const d = daysUntil(effectiveDue);
-                        const overdue = d !== null && d < 0 && milestone.status !== "Erledigt";
-                        return (
-                          <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap", fontSize: 12 }}>
-                            {effectiveDue ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(effectiveDue)}{overdue ? " (überfällig)" : d === 0 ? " (heute)" : ""}</> : "–"}
-                          </td>
-                        );
-                      })()}
+                      <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap", fontSize: 12 }}>
+                        {effectiveDue ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(effectiveDue)}{overdue ? " (überfällig)" : d === 0 ? " (heute)" : ""}</> : "–"}
+                      </td>
                       <td style={tdStyle}><span style={S.badge(STATUS_COLOR[milestone.status])}>{milestone.status}</span></td>
                       {i === 0 ? (
                         <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "top" }} rowSpan={checks.length}>
@@ -693,7 +688,8 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                         </td>
                       ) : null}
                     </tr>
-                  ));
+                    );
+                  });
                 })}
               </tbody>
             </table>
