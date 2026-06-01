@@ -59,6 +59,12 @@ const daysUntil = (dateStr) => {
 const formatEUR = (n) =>
   new Intl.NumberFormat("de-AT", { style: "currency", currency: "EUR" }).format(n || 0);
 
+const formatDate = (dateStr) => {
+  if (!dateStr) return "";
+  const [y, m, d] = dateStr.split("-");
+  return `${d}.${m}.${y}`;
+};
+
 const makeEmptyMilestone = (ressort) => ({
   id: null, ressort, title: "", dueDate: "", status: "Offen", priority: "Mittel",
   verantwortlich: "", checklist: [], files: [], milestoneFiles: [],
@@ -326,15 +332,48 @@ function MilestoneFileUpload({ files, onChange }) {
 }
 
 function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, setCheckText, checkVerantwortlich, setCheckVerantwortlich, ressorts }) {
+  const [checkDueDate, setCheckDueDate] = useState("");
+  const [checkStatus, setCheckStatus] = useState("Offen");
   const addCheck = () => {
     if (!checkText.trim()) return;
-    setData({ ...data, checklist: [...data.checklist, { text: checkText.trim(), done: false, verantwortlich: checkVerantwortlich.trim() }] });
+    setData({
+      ...data,
+      checklist: [
+        ...data.checklist,
+        {
+          text: checkText.trim(),
+          done: checkStatus === "Erledigt",
+          status: checkStatus,
+          verantwortlich: checkVerantwortlich.trim(),
+          dueDate: checkDueDate || "",
+        },
+      ],
+    });
     setCheckText("");
     setCheckVerantwortlich("");
+    setCheckDueDate("");
+    setCheckStatus("Offen");
   };
-  const toggleCheck = (i) => setData({ ...data, checklist: data.checklist.map((c, idx) => idx === i ? { ...c, done: !c.done } : c) });
+  const toggleCheck = (i) => setData({
+    ...data,
+    checklist: data.checklist.map((c, idx) => {
+      if (idx !== i) return c;
+      const newDone = !c.done;
+      return { ...c, done: newDone, status: newDone ? "Erledigt" : (c.status && c.status !== "Erledigt" ? c.status : "Offen") };
+    }),
+  });
   const removeCheck = (i) => setData({ ...data, checklist: data.checklist.filter((_, idx) => idx !== i) });
-  const updateCheckField = (i, field, value) => setData({ ...data, checklist: data.checklist.map((c, idx) => idx === i ? { ...c, [field]: value } : c) });
+  const updateCheckField = (i, field, value) => setData({
+    ...data,
+    checklist: data.checklist.map((c, idx) => {
+      if (idx !== i) return c;
+      const next = { ...c, [field]: value };
+      if (field === "status") {
+        next.done = value === "Erledigt";
+      }
+      return next;
+    }),
+  });
   return (
     <div style={{ ...S.card, border: "2px solid #6c63ff", marginBottom: 16 }}>
       <h3 style={{ margin: "0 0 14px", color: "#6c63ff" }}>{data.id ? "Meilenstein bearbeiten" : "Neuer Meilenstein"}</h3>
@@ -351,11 +390,43 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
       <label style={S.label}>Checkliste</label>
       {data.checklist.map((c, i) => (
         <div key={i} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: c.verantwortlich !== undefined ? 6 : 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
             <input type="checkbox" checked={c.done} onChange={() => toggleCheck(i)} />
-            <span style={{ flex: 1, fontSize: 13, textDecoration: c.done ? "line-through" : "none", color: c.done ? "#9ca3af" : "#374151" }}>{c.text}</span>
+            <input
+              style={{
+                ...S.input,
+                flex: 1,
+                marginBottom: 0,
+                fontSize: 13,
+                padding: "5px 8px",
+                background: "#fff",
+                textDecoration: c.done ? "line-through" : "none",
+                color: c.done ? "#9ca3af" : "#374151",
+              }}
+              value={c.text}
+              onChange={(e) => updateCheckField(i, "text", e.target.value)}
+            />
+
+            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>🏷️</span>
+            <select
+              style={{ ...S.input, width: 170, marginBottom: 0, fontSize: 12, padding: "4px 8px" }}
+              value={c.status || (c.done ? "Erledigt" : "Offen")}
+              onChange={(e) => updateCheckField(i, "status", e.target.value)}
+            >
+              {STATUSES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+
+            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>📅</span>
+            <input
+              style={{ ...S.input, width: 150, marginBottom: 0, fontSize: 12, padding: "4px 8px" }}
+              type="date"
+              value={c.dueDate || ""}
+              onChange={(e) => updateCheckField(i, "dueDate", e.target.value)}
+            />
+
             <button onClick={() => removeCheck(i)} style={{ background: "none", border: "none", color: "#ef4444", cursor: "pointer", fontSize: 14 }}>✕</button>
           </div>
+
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>👤 Verantwortlich:</span>
             <input style={{ ...S.input, marginBottom: 0, fontSize: 12, padding: "4px 8px", flex: 1 }} placeholder="Name eingeben..." value={c.verantwortlich || ""} onChange={(e) => updateCheckField(i, "verantwortlich", e.target.value)} />
@@ -364,13 +435,26 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
       ))}
       <div style={{ background: "#f0f4ff", border: "1.5px dashed #a5b4fc", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
         <div style={{ fontSize: 11, color: "#6c63ff", fontWeight: 700, marginBottom: 6 }}>+ Neuer Checkpunkt</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          <input style={{ ...S.input, flex: 1, marginBottom: 0 }} placeholder="Checkpunkt-Bezeichnung..." value={checkText} onChange={(e) => setCheckText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
+        <div style={{ display: "flex", gap: 8, marginBottom: 6, flexWrap: "wrap" }}>
+          <input style={{ ...S.input, flex: 1, minWidth: 220, marginBottom: 0 }} placeholder="Checkpunkt-Bezeichnung..." value={checkText} onChange={(e) => setCheckText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
+            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>📅 Datum:</span>
+            <input style={{ ...S.input, width: 150, marginBottom: 0, fontSize: 13, padding: "6px 10px" }} type="date" value={checkDueDate} onChange={(e) => setCheckDueDate(e.target.value)} />
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: 6, flex: "0 0 auto" }}>
+            <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>🏷️ Status:</span>
+            <select style={{ ...S.input, width: 170, marginBottom: 0, fontSize: 13, padding: "6px 10px" }} value={checkStatus} onChange={(e) => setCheckStatus(e.target.value)}>
+              {STATUSES.map((s) => <option key={s}>{s}</option>)}
+            </select>
+          </div>
         </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+        <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
           <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>👤 Verantwortlich:</span>
-          <input style={{ ...S.input, flex: 1, marginBottom: 0, fontSize: 13 }} placeholder="Name eingeben..." value={checkVerantwortlich} onChange={(e) => setCheckVerantwortlich(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
+          <input style={{ ...S.input, flex: 1, minWidth: 220, marginBottom: 0, fontSize: 13 }} placeholder="Name eingeben..." value={checkVerantwortlich} onChange={(e) => setCheckVerantwortlich(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
           <button style={S.btn("#6c63ff")} onClick={addCheck}>+ Hinzufügen</button>
+        </div>
+        <div style={{ fontSize: 11, color: "#6b7280", marginTop: 6 }}>
+          Wenn kein Datum gewählt wird, gilt automatisch das Meilenstein-Datum.
         </div>
       </div>
       <label style={S.label}>Anhänge</label>
@@ -389,6 +473,7 @@ function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
   const overdue = days !== null && days < 0 && m.status !== "Erledigt";
   const expanded = expandedId === m.id;
   const done = m.checklist.filter((c) => c.done).length;
+  const effectiveDueDate = (c) => (c && c.dueDate ? c.dueDate : m.dueDate);
   return (
     <div style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[m.status]}`, marginBottom: 10, cursor: "pointer" }} onClick={() => setExpandedId(expanded ? null : m.id)}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
@@ -399,7 +484,7 @@ function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
         <span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span>
         {m.dueDate && (
           <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>
-            {overdue ? "⚠️ " : "📅 "}{m.dueDate}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ` (${days}d)`}
+            {overdue ? "⚠️ " : "📅 "}{formatDate(m.dueDate)}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ""}
           </span>
         )}
         <button style={{ ...S.btn("#6c63ff"), padding: "4px 10px", fontSize: 12 }} onClick={(e) => { e.stopPropagation(); onEdit(m); }}>✏️</button>
@@ -410,6 +495,16 @@ function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
             <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
               <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
               <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
+              {(c.dueDate || m.dueDate) && (
+                <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>
+                  📅 {formatDate(effectiveDueDate(c))}
+                </span>
+              )}
+              {c.status && c.status !== "Erledigt" && (
+                <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>
+                  🏷️ {c.status}
+                </span>
+              )}
               {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
             </div>
           ))}
@@ -422,9 +517,7 @@ function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
 function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
   const [nameInput, setNameInput] = useState("");
   const [searchedName, setSearchedName] = useState("");
-  const [expandedIds, setExpandedIds] = useState({});
-  const toggleExpanded = (key) => setExpandedIds((prev) => ({ ...prev, [key]: !prev[key] }));
-  const handleSearch = () => { setSearchedName(nameInput.trim()); setExpandedIds({}); };
+  const handleSearch = () => { setSearchedName(nameInput.trim()); };
   const nameLower = searchedName ? searchedName.toLowerCase() : "";
   const filteredMilestones = searchedName ? milestones.filter((m) => m.verantwortlich && m.verantwortlich.toLowerCase().includes(nameLower)) : [];
   const filteredChecklistItems = searchedName
@@ -434,124 +527,159 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
         return { milestone: m, checks };
       }).filter(Boolean)
     : [];
-  const groupedMilestones = config.ressorts.map((r) => ({ ressort: r, items: filteredMilestones.filter((m) => m.ressort === r.id) })).filter((g) => g.items.length > 0);
-  const groupedChecklist = config.ressorts.map((r) => ({ ressort: r, items: filteredChecklistItems.filter((x) => x.milestone.ressort === r.id) })).filter((g) => g.items.length > 0);
   const doneCount = filteredMilestones.filter((m) => m.status === "Erledigt").length;
   const overdueCount = filteredMilestones.filter((m) => m.dueDate && daysUntil(m.dueDate) < 0 && m.status !== "Erledigt").length;
   const totalChecklistCount = filteredChecklistItems.reduce((s, x) => s + (x.checks?.length || 0), 0);
+
+  const thStyle = { textAlign: "left", fontSize: 11, fontWeight: 700, color: "#6b7280", padding: "8px 10px", borderBottom: "2px solid #e2e8f0", whiteSpace: "nowrap", background: "#f8fafc" };
+  const tdStyle = { padding: "9px 10px", fontSize: 13, borderBottom: "1px solid #f1f5f9", verticalAlign: "middle" };
+
   return (
     <div style={S.section}>
       <h2 style={{ margin: "0 0 6px", fontWeight: 900 }}>👤 Meine Aufgaben</h2>
-      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>Gib deinen Namen ein, um alle Meilensteine zu sehen, für die du verantwortlich bist – und zusätzlich alle Checkpunkte, die dir zugewiesen sind.</p>
+      <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 20 }}>Gib deinen Namen ein, um alle Meilensteine und Checkpunkte zu sehen, die dir zugewiesen sind.</p>
+
+      {/* Suchzeile */}
       <div style={{ display: "flex", gap: 8, marginBottom: 24, flexWrap: "wrap" }}>
         <input style={{ ...S.input, flex: 1, minWidth: 220, marginBottom: 0 }} placeholder="Deinen Namen eingeben..." value={nameInput} onChange={(e) => setNameInput(e.target.value)} onKeyDown={(e) => e.key === "Enter" && handleSearch()} />
         <button style={S.btn("#6c63ff")} onClick={handleSearch}>🔍 Suchen</button>
-        {searchedName && <button style={S.btn("#6b7280")} onClick={() => { setSearchedName(""); setNameInput(""); setExpandedIds({}); }}>✕ Zurücksetzen</button>}
+        {searchedName && <button style={S.btn("#6b7280")} onClick={() => { setSearchedName(""); setNameInput(""); }}>✕ Zurücksetzen</button>}
       </div>
-      {searchedName && filteredMilestones.length === 0 && totalChecklistCount === 0 && (
-        <div style={{ ...S.card, textAlign: "center", color: "#9ca3af", padding: 40 }}>Keine Aufgaben für „{searchedName}" gefunden.</div>
-      )}
+
+      {/* Name-Banner */}
       {searchedName && (filteredMilestones.length > 0 || totalChecklistCount > 0) && (
-        <>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 20 }}>
+        <div style={{ background: "linear-gradient(135deg,#1e1b4b,#3730a3)", borderRadius: 14, padding: "16px 20px", marginBottom: 20, display: "flex", alignItems: "center", gap: 14, flexWrap: "wrap" }}>
+          <div style={{ fontSize: 36 }}>👤</div>
+          <div>
+            <div style={{ color: "#a5b4fc", fontSize: 12, fontWeight: 600, marginBottom: 2 }}>Aufgaben für</div>
+            <div style={{ color: "#fff", fontSize: 22, fontWeight: 900 }}>{searchedName}</div>
+          </div>
+          <div style={{ marginLeft: "auto", display: "flex", gap: 12, flexWrap: "wrap" }}>
             {[
-              { label: "Meilensteine", value: filteredMilestones.length, color: "#6c63ff" },
-              { label: "Erledigt", value: doneCount, color: "#10b981" },
-              { label: "Überfällig", value: overdueCount, color: "#ef4444" },
-              { label: "Checkpunkte", value: totalChecklistCount, color: "#3b82f6" },
-            ].map((stat) => (
-              <div key={stat.label} style={{ ...S.card, textAlign: "center", borderTop: `4px solid ${stat.color}`, marginBottom: 0 }}>
-                <div style={{ fontSize: 26, fontWeight: 900, color: stat.color }}>{stat.value}</div>
-                <div style={{ fontSize: 11, color: "#6b7280", marginTop: 4 }}>{stat.label}</div>
+              { label: "Meilensteine", value: filteredMilestones.length, color: "#a5b4fc" },
+              { label: "Erledigt", value: doneCount, color: "#6ee7b7" },
+              { label: "Überfällig", value: overdueCount, color: "#fca5a5" },
+              { label: "Checkpunkte", value: totalChecklistCount, color: "#93c5fd" },
+            ].map((s) => (
+              <div key={s.label} style={{ textAlign: "center" }}>
+                <div style={{ color: s.color, fontWeight: 900, fontSize: 20 }}>{s.value}</div>
+                <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 10 }}>{s.label}</div>
               </div>
             ))}
           </div>
-          {filteredMilestones.length > 0 && (
-            <div style={{ ...S.card, marginBottom: 16, borderLeft: "4px solid #6c63ff" }}>
-              <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#6c63ff" }}>📌 Meilensteine</h3>
-              {groupedMilestones.map(({ ressort, items }) => (
-                <div key={ressort.id} style={{ marginBottom: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: ressort.color, flexShrink: 0 }} />
-                    <h4 style={{ margin: 0, fontWeight: 800, color: ressort.color, fontSize: 14 }}>{ressort.label}</h4>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>{items.length} Aufgabe{items.length !== 1 ? "n" : ""}</span>
-                    <button style={{ ...S.btn(ressort.color), padding: "3px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => navigateToRessort(ressort.id)}>→ Ressort öffnen</button>
-                  </div>
-                  {items.map((m) => {
-                    const days = daysUntil(m.dueDate);
-                    const overdue = days !== null && days < 0 && m.status !== "Erledigt";
-                    const expanded = !!expandedIds[`ms_${m.id}`];
-                    const done = (m.checklist || []).filter((c) => c.done).length;
-                    return (
-                      <div key={m.id} style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[m.status]}`, marginBottom: 10, cursor: "pointer" }} onClick={() => toggleExpanded(`ms_${m.id}`)}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                          <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{m.title}</span>
-                          {m.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {m.verantwortlich}</span>}
-                          {(m.checklist || []).length > 0 && <span style={{ fontSize: 11, color: "#6b7280" }}>{done}/{(m.checklist || []).length} ✓</span>}
-                          <span style={S.badge(PRIORITY_COLOR[m.priority])}>{m.priority}</span>
-                          <span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span>
-                          {m.dueDate && <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>{overdue ? "⚠️ " : "📅 "}{m.dueDate}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ` (${days}d)`}</span>}
+        </div>
+      )}
+
+      {searchedName && filteredMilestones.length === 0 && totalChecklistCount === 0 && (
+        <div style={{ ...S.card, textAlign: "center", color: "#9ca3af", padding: 40 }}>Keine Aufgaben für „{searchedName}" gefunden.</div>
+      )}
+
+      {/* ── Meilensteine Tabelle ── */}
+      {filteredMilestones.length > 0 && (
+        <div style={{ ...S.card, marginBottom: 20, borderLeft: "4px solid #6c63ff", padding: "16px 0 0 0", overflow: "hidden" }}>
+          <h3 style={{ margin: "0 0 12px", fontWeight: 900, color: "#6c63ff", padding: "0 18px" }}>📌 Meilensteine</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Ressort</th>
+                  <th style={thStyle}>Titel</th>
+                  <th style={thStyle}>Fälligkeit</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={thStyle}>Priorität</th>
+                  <th style={thStyle}>Checkliste</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>→</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredMilestones.map((m) => {
+                  const days = daysUntil(m.dueDate);
+                  const overdue = days !== null && days < 0 && m.status !== "Erledigt";
+                  const r = config.ressorts.find((x) => x.id === m.ressort);
+                  const done = (m.checklist || []).filter((c) => c.done).length;
+                  const total = (m.checklist || []).length;
+                  return (
+                    <tr key={m.id} style={{ background: overdue ? "#fff5f5" : "transparent" }}>
+                      <td style={tdStyle}>
+                        <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                          <span style={{ width: 8, height: 8, borderRadius: "50%", background: r?.color || "#6b7280", display: "inline-block", flexShrink: 0 }} />
+                          <span style={{ fontSize: 12, color: r?.color || "#6b7280", fontWeight: 700 }}>{r?.label || m.ressort}</span>
                         </div>
-                        {expanded && (m.checklist || []).length > 0 && (
-                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
-                            {(m.checklist || []).map((c, i) => (
-                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
-                                <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
-                                {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
-                              </div>
-                            ))}
+                      </td>
+                      <td style={{ ...tdStyle, fontWeight: 600, color: "#1e293b" }}>{m.title}</td>
+                      <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap" }}>
+                        {m.dueDate ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(m.dueDate)}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ""}</> : "–"}
+                      </td>
+                      <td style={tdStyle}><span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span></td>
+                      <td style={tdStyle}><span style={S.badge(PRIORITY_COLOR[m.priority])}>{m.priority}</span></td>
+                      <td style={{ ...tdStyle, color: "#6b7280", fontSize: 12 }}>{total > 0 ? `${done}/${total} ✓` : "–"}</td>
+                      <td style={{ ...tdStyle, textAlign: "center" }}>
+                        <button style={{ ...S.btn(r?.color || "#6c63ff"), padding: "3px 10px", fontSize: 12 }} onClick={() => navigateToRessort(m.ressort)}>→</button>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* ── Checkpunkte Tabelle ── */}
+      {totalChecklistCount > 0 && (
+        <div style={{ ...S.card, marginBottom: 20, borderLeft: "4px solid #3b82f6", padding: "16px 0 0 0", overflow: "hidden" }}>
+          <h3 style={{ margin: "0 0 12px", fontWeight: 900, color: "#3b82f6", padding: "0 18px" }}>✅ Checkpunkte (dir zugewiesen)</h3>
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", minWidth: 500 }}>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Ressort</th>
+                  <th style={thStyle}>Meilenstein</th>
+                  <th style={thStyle}>Checkpunkt</th>
+                  <th style={thStyle}>Verantwortlich</th>
+                  <th style={thStyle}>Fälligkeit</th>
+                  <th style={thStyle}>Status</th>
+                  <th style={{ ...thStyle, textAlign: "center" }}>→</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredChecklistItems.map(({ milestone, checks }) => {
+                  const days = daysUntil(milestone.dueDate);
+                  const overdue = days !== null && days < 0 && milestone.status !== "Erledigt";
+                  const r = config.ressorts.find((x) => x.id === milestone.ressort);
+                  return checks.map((c, i) => (
+                    <tr key={`${milestone.id}-${i}`} style={{ background: overdue ? "#fff5f5" : "transparent" }}>
+                      {i === 0 ? (
+                        <td style={{ ...tdStyle, verticalAlign: "top" }} rowSpan={checks.length}>
+                          <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                            <span style={{ width: 8, height: 8, borderRadius: "50%", background: r?.color || "#6b7280", display: "inline-block", flexShrink: 0 }} />
+                            <span style={{ fontSize: 12, color: r?.color || "#6b7280", fontWeight: 700 }}>{r?.label || milestone.ressort}</span>
                           </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
-          {totalChecklistCount > 0 && (
-            <div style={{ ...S.card, marginBottom: 16, borderLeft: "4px solid #3b82f6" }}>
-              <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#3b82f6" }}>✅ Checkpunkte (dir zugewiesen)</h3>
-              {groupedChecklist.map(({ ressort, items }) => (
-                <div key={ressort.id} style={{ marginBottom: 18 }}>
-                  <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
-                    <div style={{ width: 12, height: 12, borderRadius: "50%", background: ressort.color, flexShrink: 0 }} />
-                    <h4 style={{ margin: 0, fontWeight: 800, color: ressort.color, fontSize: 14 }}>{ressort.label}</h4>
-                    <button style={{ ...S.btn(ressort.color), padding: "3px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => navigateToRessort(ressort.id)}>→ Ressort öffnen</button>
-                  </div>
-                  {items.map(({ milestone, checks }) => {
-                    const days = daysUntil(milestone.dueDate);
-                    const overdue = days !== null && days < 0 && milestone.status !== "Erledigt";
-                    const expanded = !!expandedIds[`cp_${milestone.id}`];
-                    return (
-                      <div key={milestone.id} style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[milestone.status]}`, marginBottom: 10, cursor: "pointer" }} onClick={() => toggleExpanded(`cp_${milestone.id}`)}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-                          <span style={{ flex: 1, fontWeight: 800, fontSize: 14 }}>{milestone.title}</span>
-                          {milestone.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {milestone.verantwortlich}</span>}
-                          <span style={S.badge(PRIORITY_COLOR[milestone.priority])}>{milestone.priority}</span>
-                          <span style={S.badge(STATUS_COLOR[milestone.status])}>{milestone.status}</span>
-                          {milestone.dueDate && <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>{overdue ? "⚠️ " : "📅 "}{milestone.dueDate}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ` (${days}d)`}</span>}
-                          <span style={{ fontSize: 12, color: "#6b7280" }}>{checks.length} Checkpunkt{checks.length !== 1 ? "e" : ""}</span>
-                        </div>
-                        {expanded && (
-                          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
-                            {checks.map((c, i) => (
-                              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-                                <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
-                                <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              ))}
-            </div>
-          )}
-        </>
+                        </td>
+                      ) : null}
+                      {i === 0 ? (
+                        <td style={{ ...tdStyle, fontWeight: 600, color: "#1e293b", verticalAlign: "top" }} rowSpan={checks.length}>{milestone.title}</td>
+                      ) : null}
+                      <td style={{ ...tdStyle, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none" }}>
+                        {c.done ? "✅ " : "⬜ "}{c.text}
+                      </td>
+                      <td style={{ ...tdStyle, color: "#6b7280", fontSize: 12 }}>{c.verantwortlich || "–"}</td>
+                      <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap", fontSize: 12 }}>
+                        {milestone.dueDate ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(milestone.dueDate)}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ""}</> : "–"}
+                      </td>
+                      <td style={tdStyle}><span style={S.badge(STATUS_COLOR[milestone.status])}>{milestone.status}</span></td>
+                      {i === 0 ? (
+                        <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "top" }} rowSpan={checks.length}>
+                          <button style={{ ...S.btn(r?.color || "#3b82f6"), padding: "3px 10px", fontSize: 12 }} onClick={() => navigateToRessort(milestone.ressort)}>→</button>
+                        </td>
+                      ) : null}
+                    </tr>
+                  ));
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
     </div>
   );
@@ -691,7 +819,7 @@ function AdminPage({
               <span style={{ flex: 1, fontSize: 13, fontWeight: 600 }}>{m.title}</span>
               {m.verantwortlich && <span style={{ fontSize: 12, color: "#6b7280" }}>👤 {m.verantwortlich}</span>}
               <span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span>
-              {m.dueDate && <span style={{ fontSize: 12, color: "#6b7280" }}>📅 {m.dueDate}</span>}
+              {m.dueDate && <span style={{ fontSize: 12, color: "#6b7280" }}>📅 {formatDate(m.dueDate)}</span>}
               <button style={{ ...S.btn("#6c63ff"), padding: "4px 10px", fontSize: 12 }} onClick={() => navigateToRessort(m.ressort)}>→</button>
               <button style={{ ...S.btn("#ef4444"), padding: "4px 10px", fontSize: 12 }} onClick={() => deleteMilestone(m.id)}>🗑️</button>
             </div>
