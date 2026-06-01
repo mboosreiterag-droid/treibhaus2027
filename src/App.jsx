@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import {
@@ -65,10 +66,9 @@ const makeEmptyMilestone = (ressort) => ({
 
 const S = {
   app: { fontFamily: "'Segoe UI',sans-serif", minHeight: "100vh", background: "#f1f5f9", color: "#1e293b" },
-  nav: { background: "#1e1b4b", padding: "10px 20px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 100 },
-  navTitle: { color: "#a5b4fc", fontWeight: 900, fontSize: 16, marginRight: 12 },
-  navBtnRessort: (active) => ({ background: active ? "#6c63ff" : "rgba(99,120,255,0.22)", color: active ? "#fff" : "#c7d2fe", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }),
-  navBtn: (active) => ({ background: active ? "#6c63ff" : "transparent", color: active ? "#fff" : "#c7d2fe", border: "none", borderRadius: 8, padding: "6px 14px", cursor: "pointer", fontWeight: 600, fontSize: 13 }),
+  nav: { background: "#1e1b4b", padding: "10px 16px", display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap", position: "sticky", top: 0, zIndex: 100 },
+  navTitle: { color: "#a5b4fc", fontWeight: 900, fontSize: 15, marginRight: 8, whiteSpace: "nowrap", flexShrink: 0 },
+  navBtn: (active) => ({ background: active ? "#6c63ff" : "transparent", color: active ? "#fff" : "#c7d2fe", border: "none", borderRadius: 8, padding: "6px 12px", cursor: "pointer", fontWeight: 600, fontSize: 13, whiteSpace: "nowrap", flexShrink: 0 }),
   section: { padding: "24px 20px", maxWidth: 960, margin: "0 auto" },
   card: { background: "#fff", borderRadius: 14, padding: "18px 20px", boxShadow: "0 1px 4px rgba(0,0,0,0.07)", marginBottom: 16 },
   label: { fontSize: 12, color: "#6b7280", fontWeight: 600, marginBottom: 4, display: "block" },
@@ -79,6 +79,93 @@ const S = {
 
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
+
+// ── Ressort Dropdown ────────────────────────────────────────────────────────
+function RessortDropdown({ ressorts, activePage, activeRessort, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef();
+
+  useEffect(() => {
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, []);
+
+  const isActive = activePage === "ressort";
+  const activeLabel = isActive ? ressorts.find((r) => r.id === activeRessort)?.label : null;
+
+  return (
+    <div ref={ref} style={{ position: "relative", flexShrink: 0 }}>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        style={{
+          background: isActive ? "#6c63ff" : "transparent",
+          color: isActive ? "#fff" : "#c7d2fe",
+          border: "1.5px solid " + (isActive ? "#6c63ff" : "rgba(165,180,252,0.35)"),
+          borderRadius: 8,
+          padding: "6px 12px",
+          cursor: "pointer",
+          fontWeight: 600,
+          fontSize: 13,
+          display: "flex",
+          alignItems: "center",
+          gap: 6,
+          whiteSpace: "nowrap",
+        }}
+      >
+        🎭 {activeLabel || "Ressorts"}
+        <span style={{ fontSize: 10, opacity: 0.75 }}>{open ? "▲" : "▼"}</span>
+      </button>
+      {open && (
+        <div style={{
+          position: "absolute",
+          top: "calc(100% + 6px)",
+          left: 0,
+          background: "#1e1b4b",
+          border: "1.5px solid rgba(165,180,252,0.25)",
+          borderRadius: 12,
+          overflow: "hidden",
+          minWidth: 200,
+          boxShadow: "0 8px 24px rgba(0,0,0,0.35)",
+          zIndex: 200,
+          maxHeight: "60vh",
+          overflowY: "auto",
+        }}>
+          {ressorts.map((r) => {
+            const selected = isActive && activeRessort === r.id;
+            return (
+              <button
+                key={r.id}
+                onClick={() => { onSelect(r.id); setOpen(false); }}
+                style={{
+                  display: "flex",
+                  alignItems: "center",
+                  gap: 10,
+                  width: "100%",
+                  background: selected ? "rgba(108,99,255,0.35)" : "transparent",
+                  color: selected ? "#fff" : "#c7d2fe",
+                  border: "none",
+                  padding: "11px 16px",
+                  cursor: "pointer",
+                  fontSize: 13,
+                  fontWeight: selected ? 700 : 500,
+                  textAlign: "left",
+                  borderBottom: "1px solid rgba(165,180,252,0.1)",
+                  transition: "background 0.15s",
+                }}
+                onMouseEnter={(e) => { if (!selected) e.currentTarget.style.background = "rgba(255,255,255,0.07)"; }}
+                onMouseLeave={(e) => { if (!selected) e.currentTarget.style.background = "transparent"; }}
+              >
+                <span style={{ width: 10, height: 10, borderRadius: "50%", background: r.color, flexShrink: 0, display: "inline-block" }} />
+                {r.label}
+              </button>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function ConfirmModal({ message, onConfirm, onCancel }) {
   return (
@@ -261,7 +348,6 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
       </div>
       <label style={S.label}>Verantwortlich</label>
       <input style={S.input} value={data.verantwortlich || ""} onChange={(e) => setData({ ...data, verantwortlich: e.target.value })} placeholder="Name der verantwortlichen Person" />
-
       <label style={S.label}>Checkliste</label>
       {data.checklist.map((c, i) => (
         <div key={i} style={{ background: "#f8fafc", border: "1px solid #e2e8f0", borderRadius: 8, padding: "8px 10px", marginBottom: 8 }}>
@@ -272,40 +358,21 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
             <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>👤 Verantwortlich:</span>
-            <input
-              style={{ ...S.input, marginBottom: 0, fontSize: 12, padding: "4px 8px", flex: 1 }}
-              placeholder="Name eingeben..."
-              value={c.verantwortlich || ""}
-              onChange={(e) => updateCheckField(i, "verantwortlich", e.target.value)}
-            />
+            <input style={{ ...S.input, marginBottom: 0, fontSize: 12, padding: "4px 8px", flex: 1 }} placeholder="Name eingeben..." value={c.verantwortlich || ""} onChange={(e) => updateCheckField(i, "verantwortlich", e.target.value)} />
           </div>
         </div>
       ))}
-
       <div style={{ background: "#f0f4ff", border: "1.5px dashed #a5b4fc", borderRadius: 8, padding: "10px 12px", marginBottom: 10 }}>
         <div style={{ fontSize: 11, color: "#6c63ff", fontWeight: 700, marginBottom: 6 }}>+ Neuer Checkpunkt</div>
         <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-          <input
-            style={{ ...S.input, flex: 1, marginBottom: 0 }}
-            placeholder="Checkpunkt-Bezeichnung..."
-            value={checkText}
-            onChange={(e) => setCheckText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCheck()}
-          />
+          <input style={{ ...S.input, flex: 1, marginBottom: 0 }} placeholder="Checkpunkt-Bezeichnung..." value={checkText} onChange={(e) => setCheckText(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
         </div>
         <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           <span style={{ fontSize: 11, color: "#9ca3af", whiteSpace: "nowrap" }}>👤 Verantwortlich:</span>
-          <input
-            style={{ ...S.input, flex: 1, marginBottom: 0, fontSize: 13 }}
-            placeholder="Name eingeben..."
-            value={checkVerantwortlich}
-            onChange={(e) => setCheckVerantwortlich(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && addCheck()}
-          />
+          <input style={{ ...S.input, flex: 1, marginBottom: 0, fontSize: 13 }} placeholder="Name eingeben..." value={checkVerantwortlich} onChange={(e) => setCheckVerantwortlich(e.target.value)} onKeyDown={(e) => e.key === "Enter" && addCheck()} />
           <button style={S.btn("#6c63ff")} onClick={addCheck}>+ Hinzufügen</button>
         </div>
       </div>
-
       <label style={S.label}>Anhänge</label>
       <MilestoneFileUpload files={data.milestoneFiles || []} onChange={(f) => setData({ ...data, milestoneFiles: f })} />
       <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
@@ -356,42 +423,22 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
   const [nameInput, setNameInput] = useState("");
   const [searchedName, setSearchedName] = useState("");
   const [expandedIds, setExpandedIds] = useState({});
-
-  const toggleExpanded = (key) => {
-    setExpandedIds((prev) => ({ ...prev, [key]: !prev[key] }));
-  };
-
+  const toggleExpanded = (key) => setExpandedIds((prev) => ({ ...prev, [key]: !prev[key] }));
   const handleSearch = () => { setSearchedName(nameInput.trim()); setExpandedIds({}); };
-
   const nameLower = searchedName ? searchedName.toLowerCase() : "";
-
-  const filteredMilestones = searchedName
-    ? milestones.filter((m) => m.verantwortlich && m.verantwortlich.toLowerCase().includes(nameLower))
-    : [];
-
+  const filteredMilestones = searchedName ? milestones.filter((m) => m.verantwortlich && m.verantwortlich.toLowerCase().includes(nameLower)) : [];
   const filteredChecklistItems = searchedName
-    ? milestones
-        .map((m) => {
-          const checks = (m.checklist || []).filter((c) => c.verantwortlich && c.verantwortlich.toLowerCase().includes(nameLower));
-          if (checks.length === 0) return null;
-          return { milestone: m, checks };
-        })
-        .filter(Boolean)
+    ? milestones.map((m) => {
+        const checks = (m.checklist || []).filter((c) => c.verantwortlich && c.verantwortlich.toLowerCase().includes(nameLower));
+        if (checks.length === 0) return null;
+        return { milestone: m, checks };
+      }).filter(Boolean)
     : [];
-
-  const groupedMilestones = config.ressorts
-    .map((r) => ({ ressort: r, items: filteredMilestones.filter((m) => m.ressort === r.id) }))
-    .filter((g) => g.items.length > 0);
-
-  const groupedChecklist = config.ressorts
-    .map((r) => ({ ressort: r, items: filteredChecklistItems.filter((x) => x.milestone.ressort === r.id) }))
-    .filter((g) => g.items.length > 0);
-
+  const groupedMilestones = config.ressorts.map((r) => ({ ressort: r, items: filteredMilestones.filter((m) => m.ressort === r.id) })).filter((g) => g.items.length > 0);
+  const groupedChecklist = config.ressorts.map((r) => ({ ressort: r, items: filteredChecklistItems.filter((x) => x.milestone.ressort === r.id) })).filter((g) => g.items.length > 0);
   const doneCount = filteredMilestones.filter((m) => m.status === "Erledigt").length;
   const overdueCount = filteredMilestones.filter((m) => m.dueDate && daysUntil(m.dueDate) < 0 && m.status !== "Erledigt").length;
-
   const totalChecklistCount = filteredChecklistItems.reduce((s, x) => s + (x.checks?.length || 0), 0);
-
   return (
     <div style={S.section}>
       <h2 style={{ margin: "0 0 6px", fontWeight: 900 }}>👤 Meine Aufgaben</h2>
@@ -401,11 +448,9 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
         <button style={S.btn("#6c63ff")} onClick={handleSearch}>🔍 Suchen</button>
         {searchedName && <button style={S.btn("#6b7280")} onClick={() => { setSearchedName(""); setNameInput(""); setExpandedIds({}); }}>✕ Zurücksetzen</button>}
       </div>
-
       {searchedName && filteredMilestones.length === 0 && totalChecklistCount === 0 && (
         <div style={{ ...S.card, textAlign: "center", color: "#9ca3af", padding: 40 }}>Keine Aufgaben für „{searchedName}" gefunden.</div>
       )}
-
       {searchedName && (filteredMilestones.length > 0 || totalChecklistCount > 0) && (
         <>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(140px, 1fr))", gap: 12, marginBottom: 20 }}>
@@ -421,7 +466,6 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
               </div>
             ))}
           </div>
-
           {filteredMilestones.length > 0 && (
             <div style={{ ...S.card, marginBottom: 16, borderLeft: "4px solid #6c63ff" }}>
               <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#6c63ff" }}>📌 Meilensteine</h3>
@@ -433,7 +477,6 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                     <span style={{ fontSize: 12, color: "#6b7280" }}>{items.length} Aufgabe{items.length !== 1 ? "n" : ""}</span>
                     <button style={{ ...S.btn(ressort.color), padding: "3px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => navigateToRessort(ressort.id)}>→ Ressort öffnen</button>
                   </div>
-
                   {items.map((m) => {
                     const days = daysUntil(m.dueDate);
                     const overdue = days !== null && days < 0 && m.status !== "Erledigt";
@@ -467,7 +510,6 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
               ))}
             </div>
           )}
-
           {totalChecklistCount > 0 && (
             <div style={{ ...S.card, marginBottom: 16, borderLeft: "4px solid #3b82f6" }}>
               <h3 style={{ margin: "0 0 10px", fontWeight: 900, color: "#3b82f6" }}>✅ Checkpunkte (dir zugewiesen)</h3>
@@ -476,10 +518,8 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                   <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
                     <div style={{ width: 12, height: 12, borderRadius: "50%", background: ressort.color, flexShrink: 0 }} />
                     <h4 style={{ margin: 0, fontWeight: 800, color: ressort.color, fontSize: 14 }}>{ressort.label}</h4>
-                    <span style={{ fontSize: 12, color: "#6b7280" }}>{items.reduce((s, x) => s + (x.checks?.length || 0), 0)} Checkpunkt{items.reduce((s, x) => s + (x.checks?.length || 0), 0) !== 1 ? "e" : ""}</span>
                     <button style={{ ...S.btn(ressort.color), padding: "3px 10px", fontSize: 12, marginLeft: "auto" }} onClick={() => navigateToRessort(ressort.id)}>→ Ressort öffnen</button>
                   </div>
-
                   {items.map(({ milestone, checks }) => {
                     const days = daysUntil(milestone.dueDate);
                     const overdue = days !== null && days < 0 && milestone.status !== "Erledigt";
@@ -494,14 +534,12 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                           {milestone.dueDate && <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>{overdue ? "⚠️ " : "📅 "}{milestone.dueDate}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ` (${days}d)`}</span>}
                           <span style={{ fontSize: 12, color: "#6b7280" }}>{checks.length} Checkpunkt{checks.length !== 1 ? "e" : ""}</span>
                         </div>
-
                         {expanded && (
                           <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
                             {checks.map((c, i) => (
                               <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
                                 <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
                                 <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
-                                {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
                               </div>
                             ))}
                           </div>
@@ -564,7 +602,6 @@ function AdminPage({
   };
 
   const totalFiles = config.ressorts.reduce((s, r) => s + (ressortFiles[r.id] || []).length, 0);
-
   const moveRessort = (i, dir) => {
     const rs = [...editConfig.ressorts];
     const j = i + dir;
@@ -584,7 +621,6 @@ function AdminPage({
           <button style={S.btn("#6b7280")} onClick={() => { setAdminUnlocked(false); setAdminPwError(false); }}>🔒 Abmelden</button>
         </div>
       </div>
-
       <div style={S.card}>
         <h3 style={{ margin: "0 0 14px" }}>📦 Belege & Export</h3>
         <p style={{ fontSize: 13, color: "#6b7280", marginBottom: 14 }}>{totalFiles} Beleg{totalFiles !== 1 ? "e" : ""} in allen Ressorts gespeichert.</p>
@@ -593,7 +629,6 @@ function AdminPage({
           <button style={S.btn("#6c63ff")} onClick={downloadAll}>📦 Alle Belege herunterladen</button>
         </div>
       </div>
-
       {editConfig && (
         <div style={S.card}>
           <h3 style={{ margin: "0 0 14px" }}>🌐 Allgemeine Einstellungen</h3>
@@ -617,17 +652,15 @@ function AdminPage({
               <img src={editConfig.headerImage} alt="Vorschau Header" style={{ width: "100%", maxHeight: 150, objectFit: "cover", borderRadius: 10, border: "1px solid #e2e8f0", marginBottom: 6 }} onError={(e) => { e.target.style.display = "none"; }} />
             )}
           </div>
-
           <h3 style={{ margin: "14px 0 10px" }}>🎭 Ressorts</h3>
-          <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>Mit ↑ ↓ kannst du die Reihenfolge der Ressorts ändern. Die Menüleiste spiegelt die Reihenfolge wider.</p>
+          <p style={{ fontSize: 12, color: "#6b7280", marginBottom: 12 }}>Mit ↑ ↓ kannst du die Reihenfolge der Ressorts ändern.</p>
           {editConfig.ressorts.map((r, i) => (
             <div key={r.id} style={{ marginBottom: 12, background: "#f8fafc", borderRadius: 10, padding: "10px 12px", border: "1px solid #e2e8f0" }}>
               <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap", marginBottom: 6 }}>
                 <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-                  <button title="Nach oben" disabled={i === 0} style={{ background: i === 0 ? "#e2e8f0" : "#6c63ff", color: i === 0 ? "#9ca3af" : "#fff", border: "none", borderRadius: 6, width: 28, height: 24, cursor: i === 0 ? "default" : "pointer", fontWeight: 900, fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => moveRessort(i, -1)}>▲</button>
-                  <button title="Nach unten" disabled={i === editConfig.ressorts.length - 1} style={{ background: i === editConfig.ressorts.length - 1 ? "#e2e8f0" : "#6c63ff", color: i === editConfig.ressorts.length - 1 ? "#9ca3af" : "#fff", border: "none", borderRadius: 6, width: 28, height: 24, cursor: i === editConfig.ressorts.length - 1 ? "default" : "pointer", fontWeight: 900, fontSize: 12, lineHeight: 1, display: "flex", alignItems: "center", justifyContent: "center" }} onClick={() => moveRessort(i, 1)}>▼</button>
+                  <button title="Nach oben" disabled={i === 0} style={{ background: i === 0 ? "#e2e8f0" : "#6c63ff", color: i === 0 ? "#9ca3af" : "#fff", border: "none", borderRadius: 6, width: 28, height: 24, cursor: i === 0 ? "default" : "pointer", fontWeight: 900, fontSize: 12 }} onClick={() => moveRessort(i, -1)}>▲</button>
+                  <button title="Nach unten" disabled={i === editConfig.ressorts.length - 1} style={{ background: i === editConfig.ressorts.length - 1 ? "#e2e8f0" : "#6c63ff", color: i === editConfig.ressorts.length - 1 ? "#9ca3af" : "#fff", border: "none", borderRadius: 6, width: 28, height: 24, cursor: i === editConfig.ressorts.length - 1 ? "default" : "pointer", fontWeight: 900, fontSize: 12 }} onClick={() => moveRessort(i, 1)}>▼</button>
                 </div>
-                <span style={{ fontSize: 12, color: "#9ca3af", fontWeight: 700, minWidth: 18, textAlign: "center" }}>{i + 1}</span>
                 <input style={{ ...S.input, flex: 2, marginBottom: 0 }} value={r.label} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], label: e.target.value }; setEditConfig({ ...editConfig, ressorts: rs }); }} />
                 <input type="color" value={r.color} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], color: e.target.value }; setEditConfig({ ...editConfig, ressorts: rs }); }} style={{ width: 36, height: 36, border: "none", borderRadius: 6, cursor: "pointer", padding: 0 }} />
                 <input style={{ ...S.input, flex: 1, marginBottom: 0 }} type="number" placeholder="Budget €" value={r.budget || ""} onChange={(e) => { const rs = [...editConfig.ressorts]; rs[i] = { ...rs[i], budget: parseFloat(e.target.value) || 0 }; setEditConfig({ ...editConfig, ressorts: rs }); }} />
@@ -647,7 +680,6 @@ function AdminPage({
           <button style={{ ...S.btn("#6c63ff"), marginTop: 16 }} onClick={saveAdminConfig}>💾 Einstellungen speichern</button>
         </div>
       )}
-
       <div style={S.card}>
         <h3 style={{ margin: "0 0 14px" }}>📋 Alle Meilensteine ({milestones.length})</h3>
         {milestones.length === 0 && <div style={{ color: "#9ca3af" }}>Keine Meilensteine vorhanden.</div>}
@@ -945,18 +977,14 @@ export default function App() {
 
   const saveAdminConfig = async () => {
     setConfig({ ...editConfig });
-    try {
-      await setDoc(doc(db, "app", "config"), editConfig);
-    } catch (e) { console.error("Save config error:", e); }
+    try { await setDoc(doc(db, "app", "config"), editConfig); } catch (e) { console.error(e); }
   };
 
   const saveMilestone = async (m) => {
     if (!m.title.trim()) return;
     setMilestones((prev) => prev.map((x) => x.id === m.id ? m : x));
     setEditingMilestone(null); setEditCheckText(""); setEditCheckVerantwortlich("");
-    try {
-      await setDoc(doc(db, "milestones", String(m.id)), m);
-    } catch (e) { console.error("Save milestone error:", e); }
+    try { await setDoc(doc(db, "milestones", String(m.id)), m); } catch (e) { console.error(e); }
   };
 
   const deleteMilestone = (id) => {
@@ -964,9 +992,7 @@ export default function App() {
       setConfirmModal(null);
       setMilestones((prev) => prev.filter((m) => m.id !== id));
       setEditingMilestone(null);
-      try {
-        await deleteDoc(doc(db, "milestones", String(id)));
-      } catch (e) { console.error("Delete milestone error:", e); }
+      try { await deleteDoc(doc(db, "milestones", String(id))); } catch (e) { console.error(e); }
     });
   };
 
@@ -977,11 +1003,8 @@ export default function App() {
     setMilestones((prev) => [...prev, m]);
     setAddingMilestone(false);
     setNewMilestone(makeEmptyMilestone(activeRessort));
-    setNewCheckText("");
-    setNewCheckVerantwortlich("");
-    try {
-      await setDoc(doc(db, "milestones", id), m);
-    } catch (e) { console.error("Add milestone error:", e); }
+    setNewCheckText(""); setNewCheckVerantwortlich("");
+    try { await setDoc(doc(db, "milestones", id), m); } catch (e) { console.error(e); }
   };
 
   const addNewRessort = () => {
@@ -989,15 +1012,12 @@ export default function App() {
     const id = newRessortLabel.toLowerCase().replace(/\s+/g, "_").replace(/[^a-z0-9_]/g, "");
     const newR = { id, label: newRessortLabel, color: newRessortColor, budget: 0, verantwortlich: "" };
     setEditConfig((prev) => ({ ...prev, ressorts: [...prev.ressorts, newR] }));
-    setNewRessortLabel("");
-    setNewRessortColor("#6c63ff");
+    setNewRessortLabel(""); setNewRessortColor("#6c63ff");
   };
 
   const updateRessortFiles = async (ressortId, files) => {
     setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
-    try {
-      await setDoc(doc(db, "ressortFiles", ressortId), { files });
-    } catch (e) { console.error("Save files error:", e); }
+    try { await setDoc(doc(db, "ressortFiles", ressortId), { files }); } catch (e) { console.error(e); }
   };
 
   const navigateToRessort = (ressortId) => {
@@ -1035,15 +1055,27 @@ export default function App() {
           onCancel={() => setConfirmModal(null)}
         />
       )}
+
+      {/* ── NAV: wraps on narrow screens ── */}
       <nav style={S.nav}>
-        <span style={S.navTitle}>🎭 {config.siteTitle}</span>
+        {/* Title always on its own "row" on very small screens by taking full width there */}
+        <span style={{ ...S.navTitle, flex: "1 0 auto" }}>🎭 {config.siteTitle}</span>
+
+        {/* Fixed nav items */}
         <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
         <button style={S.navBtn(page === "meineaufgaben")} onClick={() => setPage("meineaufgaben")}>👤 Meine Aufgaben</button>
-        {config.ressorts.map((r) => (
-          <button key={r.id} style={S.navBtnRessort(page === "ressort" && activeRessort === r.id)} onClick={() => navigateToRessort(r.id)}>{r.label}</button>
-        ))}
+
+        {/* Ressort dropdown */}
+        <RessortDropdown
+          ressorts={config.ressorts}
+          activePage={page}
+          activeRessort={activeRessort}
+          onSelect={navigateToRessort}
+        />
+
         <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
       </nav>
+
       {page === "home" && (
         <HomePage config={config} milestones={milestones} ressortFiles={ressortFiles} premiereDays={premiereDays} navigateToRessort={navigateToRessort} />
       )}
