@@ -26,6 +26,9 @@ const db = getFirestore(firebaseApp);
 const STATUSES = ["Offen", "In Bearbeitung", "Erledigt"];
 const PRIORITIES = ["Niedrig", "Mittel", "Hoch"];
 
+const DEFAULT_LOGO = "attachment/d1cbf0ab-67f1-49ee-92cb-b84f402a9002/image.png";
+const getLogo = (cfg) => (cfg && cfg.logoImage ? cfg.logoImage : DEFAULT_LOGO);
+
 const INIT_CONFIG = {
   platformPassword: "treibhaus2026",
   siteTitle: "Freilichtfestspiele Treibhaus",
@@ -33,6 +36,7 @@ const INIT_CONFIG = {
   premiereDate: "2026-07-01",
   adminPassword: "admin123",
   headerImage: "https://images.unsplash.com/photo-1507924538820-ede94a04019d?w=1200&q=80",
+  logoImage: "attachment/d1cbf0ab-67f1-49ee-92cb-b84f402a9002/image.png",
   ressorts: [
     { id: "regie", label: "Regie", color: "#6c63ff", budget: 8000, verantwortlich: "" },
     { id: "ton", label: "Ton & Musik", color: "#f59e0b", budget: 5000, verantwortlich: "" },
@@ -87,7 +91,7 @@ const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" 
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
 
 // ── Ressort Dropdown ────────────────────────────────────────────────────────
-function RessortDropdown({ ressorts, activePage, activeRessort, onSelect }) {
+function RessortDropdown({ ressorts, activePage, activeRessort, onSelect, logoImage }) {
   const [open, setOpen] = useState(false);
   const ref = useRef();
 
@@ -119,7 +123,8 @@ function RessortDropdown({ ressorts, activePage, activeRessort, onSelect }) {
           whiteSpace: "nowrap",
         }}
       >
-        🎭 {activeLabel || "Ressorts"}
+        <img src={logoImage || DEFAULT_LOGO} alt="Logo" style={{ width: 16, height: 16, objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        {activeLabel || "Ressorts"}
         <span style={{ fontSize: 10, opacity: 0.75 }}>{open ? "▲" : "▼"}</span>
       </button>
       {open && (
@@ -189,9 +194,10 @@ function ConfirmModal({ message, onConfirm, onCancel }) {
   );
 }
 
-function LoginGate({ onUnlock, platformPassword }) {
+function LoginGate({ onUnlock, platformPassword, logoImage, siteTitle, siteSubtitle }) {
   const [pw, setPw] = useState("");
   const [error, setError] = useState(false);
+  const currentLogo = logoImage || DEFAULT_LOGO;
   const tryLogin = () => {
     if (pw === (platformPassword || "treibhaus2026")) {
       onUnlock();
@@ -203,9 +209,13 @@ function LoginGate({ onUnlock, platformPassword }) {
   return (
     <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: 18, padding: "40px 36px", maxWidth: 380, width: "100%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
-        <div style={{ fontSize: 48, marginBottom: 10 }}>🎭</div>
-        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>Freilichtfestspiele Treibhaus</h2>
-        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>Projektmanagement 2026 – Bitte anmelden</p>
+        {currentLogo ? (
+          <img src={currentLogo} alt="Logo" style={{ width: 64, height: 64, objectFit: "contain", marginBottom: 10, display: "inline-block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+        ) : (
+          <div style={{ fontSize: 48, marginBottom: 10 }}>🎭</div>
+        )}
+        <h2 style={{ margin: "0 0 4px", color: "#1e1b4b", fontWeight: 900 }}>{siteTitle || "Freilichtfestspiele Treibhaus"}</h2>
+        <p style={{ color: "#6b7280", fontSize: 13, marginBottom: 24 }}>{siteSubtitle ? `${siteSubtitle} – Bitte anmelden` : "Projektmanagement 2026 – Bitte anmelden"}</p>
         <input
           style={{ width: "100%", border: "1.5px solid #e2e8f0", borderRadius: 8, padding: "10px 14px", fontSize: 15, outline: "none", marginBottom: 12, boxSizing: "border-box", textAlign: "center", letterSpacing: 2 }}
           type="password" placeholder="Passwort eingeben..." value={pw}
@@ -468,48 +478,50 @@ function MilestoneForm({ data, setData, onSave, onCancel, onDelete, checkText, s
   );
 }
 
-function MilestoneRow({ m, expandedId, setExpandedId, onEdit }) {
+function MilestoneRow({ m, expandedId, setExpandedId, onEdit, editing }) {
   const days = daysUntil(m.dueDate);
   const overdue = days !== null && days < 0 && m.status !== "Erledigt";
   const expanded = expandedId === m.id;
   const done = m.checklist.filter((c) => c.done).length;
   const effectiveDueDate = (c) => (c && c.dueDate ? c.dueDate : m.dueDate);
   return (
-    <div style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[m.status]}`, marginBottom: 10, cursor: "pointer" }} onClick={() => setExpandedId(expanded ? null : m.id)}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
-        <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{m.title}</span>
-        {m.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280" }}>👤 {m.verantwortlich}</span>}
-        {m.checklist.length > 0 && <span style={{ fontSize: 11, color: "#6b7280" }}>{done}/{m.checklist.length} ✓</span>}
-        <span style={S.badge(PRIORITY_COLOR[m.priority])}>{m.priority}</span>
-        <span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span>
-        {m.dueDate && (
-          <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>
-            {overdue ? "⚠️ " : "📅 "}{formatDate(m.dueDate)}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ""}
-          </span>
-        )}
-        <button style={{ ...S.btn("#6c63ff"), padding: "4px 10px", fontSize: 12 }} onClick={(e) => { e.stopPropagation(); onEdit(m); }}>✏️</button>
-      </div>
-      {expanded && m.checklist.length > 0 && (
-        <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
-          {m.checklist.map((c, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
-              <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
-              <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
-              {(c.dueDate || m.dueDate) && (
-                <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>
-                  📅 {formatDate(effectiveDueDate(c))}
-                </span>
-              )}
-              {c.status && c.status !== "Erledigt" && (
-                <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>
-                  🏷️ {c.status}
-                </span>
-              )}
-              {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
-            </div>
-          ))}
+    <div>
+      <div style={{ ...S.card, borderLeft: `4px solid ${STATUS_COLOR[m.status]}`, marginBottom: editing ? 6 : 10, cursor: "pointer" }} onClick={() => setExpandedId(expanded ? null : m.id)}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flexWrap: "wrap" }}>
+          <span style={{ flex: 1, fontWeight: 700, fontSize: 14 }}>{m.title}</span>
+          {m.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280" }}>👤 {m.verantwortlich}</span>}
+          {m.checklist.length > 0 && <span style={{ fontSize: 11, color: "#6b7280" }}>{done}/{m.checklist.length} ✓</span>}
+          <span style={S.badge(PRIORITY_COLOR[m.priority])}>{m.priority}</span>
+          <span style={S.badge(STATUS_COLOR[m.status])}>{m.status}</span>
+          {m.dueDate && (
+            <span style={{ fontSize: 12, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400 }}>
+              {overdue ? "⚠️ " : "📅 "}{formatDate(m.dueDate)}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ""}
+            </span>
+          )}
+          <button style={{ ...S.btn("#6c63ff"), padding: "4px 10px", fontSize: 12 }} onClick={(e) => { e.stopPropagation(); onEdit(m); }}>✏️</button>
         </div>
-      )}
+        {expanded && m.checklist.length > 0 && (
+          <div style={{ marginTop: 10, paddingTop: 10, borderTop: "1px solid #f1f5f9" }}>
+            {m.checklist.map((c, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+                <span style={{ fontSize: 13 }}>{c.done ? "✅" : "⬜"}</span>
+                <span style={{ fontSize: 13, color: c.done ? "#9ca3af" : "#374151", textDecoration: c.done ? "line-through" : "none", flex: 1 }}>{c.text}</span>
+                {(c.dueDate || m.dueDate) && (
+                  <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>
+                    📅 {formatDate(effectiveDueDate(c))}
+                  </span>
+                )}
+                {c.status && c.status !== "Erledigt" && (
+                  <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>
+                    🏷️ {c.status}
+                  </span>
+                )}
+                {c.verantwortlich && <span style={{ fontSize: 11, color: "#6b7280", background: "#f1f5f9", borderRadius: 6, padding: "1px 7px" }}>👤 {c.verantwortlich}</span>}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
@@ -664,9 +676,16 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                         {c.done ? "✅ " : "⬜ "}{c.text}
                       </td>
                       <td style={{ ...tdStyle, color: "#6b7280", fontSize: 12 }}>{c.verantwortlich || "–"}</td>
-                      <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap", fontSize: 12 }}>
-                        {milestone.dueDate ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(milestone.dueDate)}{overdue ? " (überfällig)" : days === 0 ? " (heute)" : ""}</> : "–"}
-                      </td>
+                      {(() => {
+                        const effectiveDue = (c && c.dueDate) ? c.dueDate : milestone.dueDate;
+                        const d = daysUntil(effectiveDue);
+                        const overdue = d !== null && d < 0 && milestone.status !== "Erledigt";
+                        return (
+                          <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap", fontSize: 12 }}>
+                            {effectiveDue ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(effectiveDue)}{overdue ? " (überfällig)" : d === 0 ? " (heute)" : ""}</> : "–"}
+                          </td>
+                        );
+                      })()}
                       <td style={tdStyle}><span style={S.badge(STATUS_COLOR[milestone.status])}>{milestone.status}</span></td>
                       {i === 0 ? (
                         <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "top" }} rowSpan={checks.length}>
@@ -711,7 +730,7 @@ function AdminPage({
     const rows = [["Ressort", "Dateiname", "Betrag (€)", "Verwendungszweck", "Datum"]];
     config.ressorts.forEach((r) => {
       const files = ressortFiles[r.id] || [];
-      files.forEach((f) => rows.push([r.label, f.name, parseFloat(f.amount) || 0, f.purpose || "", f.date || ""]));
+      files.forEach((f) => rows.push([r.label, f.name, parseFloat(f.amount) || 0, f.purpose || "", formatDate(f.date || "")]));
     });
     const csv = rows.map((r) => r.map((c) => `"${String(c).replace(/"/g, '""')}"`).join(";")).join("\n");
     const bom = "\uFEFF";
@@ -985,26 +1004,50 @@ function RessortPage({
               ressorts={config.ressorts}
             />
           )}
-          {editingMilestone && (
-            <MilestoneForm
-              data={editingMilestone} setData={setEditingMilestone}
-              onSave={() => saveMilestone(editingMilestone)}
-              onCancel={() => { setEditingMilestone(null); setEditCheckText(""); setEditCheckVerantwortlich(""); }}
-              onDelete={() => deleteMilestone(editingMilestone.id)}
-              checkText={editCheckText} setCheckText={setEditCheckText}
-              checkVerantwortlich={editCheckVerantwortlich} setCheckVerantwortlich={setEditCheckVerantwortlich}
-              ressorts={config.ressorts}
-            />
-          )}
           {filtered.length === 0 ? (
             <div style={{ color: "#9ca3af", textAlign: "center", padding: 40 }}>Keine Meilensteine gefunden.</div>
           ) : (
-            filtered.map((m) => (
-              <MilestoneRow
-                key={m.id} m={m} expandedId={expandedId} setExpandedId={setExpandedId}
-                onEdit={(m) => { setEditingMilestone({ ...m }); setAddingMilestone(false); setEditCheckText(""); setEditCheckVerantwortlich(""); }}
-              />
-            ))
+            filtered.map((m) => {
+              const isEditing = editingMilestone && editingMilestone.id === m.id;
+              return (
+                <div key={m.id}>
+                  <MilestoneRow
+                    m={m}
+                    expandedId={expandedId}
+                    setExpandedId={setExpandedId}
+                    editing={isEditing}
+                    onEdit={(m) => {
+                      setEditingMilestone({ ...m });
+                      setAddingMilestone(false);
+                      setEditCheckText("");
+                      setEditCheckVerantwortlich("");
+                      // Form soll direkt unterhalb erscheinen
+                      setTimeout(() => {
+                        const el = document.getElementById(`edit-form-${m.id}`);
+                        if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+                      }, 0);
+                    }}
+                  />
+
+                  {isEditing && (
+                    <div id={`edit-form-${m.id}`}>
+                      <MilestoneForm
+                        data={editingMilestone}
+                        setData={setEditingMilestone}
+                        onSave={() => saveMilestone(editingMilestone)}
+                        onCancel={() => { setEditingMilestone(null); setEditCheckText(""); setEditCheckVerantwortlich(""); }}
+                        onDelete={() => deleteMilestone(editingMilestone.id)}
+                        checkText={editCheckText}
+                        setCheckText={setEditCheckText}
+                        checkVerantwortlich={editCheckVerantwortlich}
+                        setCheckVerantwortlich={setEditCheckVerantwortlich}
+                        ressorts={config.ressorts}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
       )}
@@ -1065,9 +1108,17 @@ export default function App() {
       try {
         const configDoc = await getDoc(doc(db, "app", "config"));
         if (configDoc.exists()) {
-          setConfig(configDoc.data());
+          const loadedCfg = configDoc.data();
+          const mergedCfg = { ...INIT_CONFIG, ...loadedCfg };
+          if (!mergedCfg.logoImage) mergedCfg.logoImage = DEFAULT_LOGO;
+          setConfig(mergedCfg);
+          if (!loadedCfg.logoImage) {
+            try { await setDoc(doc(db, "app", "config"), mergedCfg); } catch (e) { console.error(e); }
+          }
         } else {
-          await setDoc(doc(db, "app", "config"), INIT_CONFIG);
+          const init = { ...INIT_CONFIG };
+          if (!init.logoImage) init.logoImage = DEFAULT_LOGO;
+          await setDoc(doc(db, "app", "config"), init);
         }
         const msSnap = await getDocs(collection(db, "milestones"));
         if (msSnap.empty) {
@@ -1104,8 +1155,10 @@ export default function App() {
   };
 
   const saveAdminConfig = async () => {
-    setConfig({ ...editConfig });
-    try { await setDoc(doc(db, "app", "config"), editConfig); } catch (e) { console.error(e); }
+    const next = { ...editConfig };
+    if (!next.logoImage) next.logoImage = DEFAULT_LOGO;
+    setConfig({ ...next });
+    try { await setDoc(doc(db, "app", "config"), next); } catch (e) { console.error(e); }
   };
 
   const saveMilestone = async (m) => {
@@ -1163,7 +1216,7 @@ export default function App() {
     return (
       <div style={{ minHeight: "100vh", background: "#1e1b4b", display: "flex", alignItems: "center", justifyContent: "center" }}>
         <div style={{ textAlign: "center", color: "#fff" }}>
-          <div style={{ fontSize: 48, marginBottom: 16 }}>🎭</div>
+          <img src={getLogo(config)} alt="Logo" style={{ width: 64, height: 64, objectFit: "contain", marginBottom: 16, display: "inline-block" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
           <div style={{ fontSize: 18, fontWeight: 700 }}>Lade Daten...</div>
         </div>
       </div>
@@ -1171,7 +1224,15 @@ export default function App() {
   }
 
   if (!platformUnlocked) {
-    return <LoginGate onUnlock={() => setPlatformUnlocked(true)} platformPassword={config.platformPassword} />;
+    return (
+      <LoginGate
+        onUnlock={() => setPlatformUnlocked(true)}
+        platformPassword={config.platformPassword}
+        logoImage={getLogo(config)}
+        siteTitle={config.siteTitle}
+        siteSubtitle={config.siteSubtitle}
+      />
+    );
   }
 
   return (
@@ -1187,7 +1248,10 @@ export default function App() {
       {/* ── NAV: wraps on narrow screens ── */}
       <nav style={S.nav}>
         {/* Title always on its own "row" on very small screens by taking full width there */}
-        <span style={{ ...S.navTitle, flex: "1 0 auto" }}>🎭 {config.siteTitle}</span>
+        <span style={{ ...S.navTitle, flex: "1 0 auto", display: "flex", alignItems: "center", gap: 8 }}>
+          <img src={getLogo(config)} alt="Logo" style={{ width: 22, height: 22, objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
+          {config.siteTitle}
+        </span>
 
         {/* Fixed nav items */}
         <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
@@ -1199,6 +1263,7 @@ export default function App() {
           activePage={page}
           activeRessort={activeRessort}
           onSelect={navigateToRessort}
+          logoImage={getLogo(config)}
         />
 
         <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
