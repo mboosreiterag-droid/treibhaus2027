@@ -979,9 +979,31 @@ function RessortPage({
     setDirty(true);
   };
 
+  const [saveError, setSaveError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  // Firestore erlaubt max. 1 MiB pro Dokument. Belege werden als Base64 im
+  // Dokument abgelegt, daher hier die Groesse pruefen.
+  const FIRESTORE_LIMIT = 1048576;
+  const payloadSize = localFiles.reduce((s, f) => s + (f.dataUrl ? f.dataUrl.length : 0) + 200, 0);
+  const tooLarge = payloadSize > FIRESTORE_LIMIT * 0.9;
+
   const saveFiles = async () => {
-    await updateRessortFiles(activeRessort, localFiles);
-    setDirty(false);
+    setSaveError("");
+    setSaving(true);
+    try {
+      await updateRessortFiles(activeRessort, localFiles);
+      setDirty(false);
+    } catch (e) {
+      console.error(e);
+      setSaveError(
+        payloadSize > FIRESTORE_LIMIT
+          ? "Die Belege sind zusammen zu gross fuer die Datenbank (Grenze 1 MB pro Ressort). Entferne einen Beleg oder lade eine kleinere Datei hoch."
+          : "Speichern fehlgeschlagen: " + (e && e.message ? e.message : String(e))
+      );
+    } finally {
+      setSaving(false);
+    }
   };
 
   if (!ressort) return <div style={S.section}>Ressort nicht gefunden.</div>;
@@ -1098,11 +1120,24 @@ function RessortPage({
             <h3 style={{ margin: "0 0 10px" }}>📎 Rechnungen & Belege</h3>
             <FileUpload files={localFiles} onChange={handleLocalChange} label="Belege hochladen" />
             <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
-              <button style={{ ...S.btn(dirty ? "#10b981" : "#94a3b8"), cursor: dirty ? "pointer" : "default" }} onClick={saveFiles} disabled={!dirty}>💾 Speichern</button>
+              <button style={{ ...S.btn(dirty && !saving ? "#10b981" : "#94a3b8"), cursor: dirty && !saving ? "pointer" : "default" }} onClick={saveFiles} disabled={!dirty || saving}>
+                {saving ? "Speichert..." : "💾 Speichern"}
+              </button>
               {dirty
                 ? <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>⚠️ Ungespeicherte Änderungen</span>
                 : <span style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✅ Gespeichert</span>}
+              <span style={{ fontSize: 11, color: tooLarge ? "#ef4444" : "#9ca3af" }}>
+                Speicherbedarf: {(payloadSize / 1048576).toFixed(2)} MB von 1,00 MB
+              </span>
             </div>
+            {tooLarge && !saveError && (
+              <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8, fontWeight: 600 }}>
+                ⚠️ Das Speicherlimit von 1 MB pro Ressort ist fast erreicht. Weitere Belege lassen sich nicht sichern.
+              </p>
+            )}
+            {saveError && (
+              <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8, fontWeight: 600 }}>❌ {saveError}</p>
+            )}
           </div>
         </div>
       )}
@@ -1252,8 +1287,10 @@ export default function App() {
   };
 
   const updateRessortFiles = async (ressortId, files) => {
+    // Erst schreiben, dann lokalen State aktualisieren - so bleibt bei einem
+    // Fehler sichtbar, dass nichts gespeichert wurde.
+    await setDoc(doc(db, "ressortFiles", ressortId), { files });
     setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
-    try { await setDoc(doc(db, "ressortFiles", ressortId), { files }); } catch (e) { console.error(e); }
   };
 
   const navigateToRessort = (ressortId) => {
