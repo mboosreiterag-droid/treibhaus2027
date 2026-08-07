@@ -584,7 +584,7 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
       )}
 
       {searchedName && filteredMilestones.length === 0 && totalChecklistCount === 0 && (
-        <div style={{ ...S.card, textAlign: "center", color: "#9ca3af", padding: 40 }}>Keine Aufgaben für „{searchedName}" gefunden.</div>
+        <div style={{ ...S.card, textAlign: "center", color: "#9ca3af", padding: 40 }}>Keine Aufgaben für „{searchedName}“ gefunden.</div>
       )}
 
       {/* ── Meilensteine Tabelle ── */}
@@ -661,7 +661,9 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                   return checks.map((c, i) => {
                     const effectiveDue = (c && c.dueDate) ? c.dueDate : milestone.dueDate;
                     const d = daysUntil(effectiveDue);
-                    const overdue = d !== null && d < 0 && milestone.status !== "Erledigt";
+                    // Eigener Status des Checkpunkts (Fallback aus done-Flag)
+                    const checkStatus = c.status || (c.done ? "Erledigt" : "Offen");
+                    const overdue = d !== null && d < 0 && checkStatus !== "Erledigt";
                     return (
                     <tr key={`${milestone.id}-${i}`} style={{ background: overdue ? "#fff5f5" : "transparent" }}>
                       {i === 0 ? (
@@ -682,7 +684,7 @@ function MeineAufgabenPage({ config, milestones, navigateToRessort }) {
                       <td style={{ ...tdStyle, color: overdue ? "#ef4444" : "#6b7280", fontWeight: overdue ? 700 : 400, whiteSpace: "nowrap", fontSize: 12 }}>
                         {effectiveDue ? <>{overdue ? "⚠️ " : "📅 "}{formatDate(effectiveDue)}{overdue ? " (überfällig)" : d === 0 ? " (heute)" : ""}</> : "–"}
                       </td>
-                      <td style={tdStyle}><span style={S.badge(STATUS_COLOR[milestone.status])}>{milestone.status}</span></td>
+                      <td style={tdStyle}><span style={S.badge(STATUS_COLOR[checkStatus])}>{checkStatus}</span></td>
                       {i === 0 ? (
                         <td style={{ ...tdStyle, textAlign: "center", verticalAlign: "top" }} rowSpan={checks.length}>
                           <button style={{ ...S.btn(r?.color || "#3b82f6"), padding: "3px 10px", fontSize: 12 }} onClick={() => navigateToRessort(milestone.ressort)}>→</button>
@@ -1147,7 +1149,7 @@ export default function App() {
   const requestLeave = (action) => {
     if (unsavedFilesRef.current) {
       askConfirm(
-        "Im Bereich „Budget & Belege" gibt es noch nicht gespeicherte Änderungen. Beim Verlassen gehen sie verloren.",
+        "Im Bereich „Budget & Belege“ gibt es noch nicht gespeicherte Änderungen. Beim Verlassen gehen sie verloren.",
         () => { setConfirmModal(null); unsavedFilesRef.current = false; action(); },
         { title: "Seite verlassen?", icon: "⚠️", confirmLabel: "Verlassen", cancelLabel: "Hier bleiben", confirmColor: "#f59e0b" }
       );
