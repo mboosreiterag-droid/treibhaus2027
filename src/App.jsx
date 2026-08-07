@@ -86,7 +86,7 @@ const S = {
   badge: (color) => ({ background: color + "22", color: color, borderRadius: 99, padding: "2px 10px", fontSize: 11, fontWeight: 700 }),
 };
 
-const APP_VERSION = "v3-belege";
+const APP_VERSION = "v4-belege";
 
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
@@ -271,7 +271,7 @@ function FileUpload({ files, onChange, label }) {
     selected.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
-        const newFile = { name: file.name, dataUrl: ev.target.result, type: file.type, amount: "", purpose: "", date: new Date().toLocaleDateString("de-AT") };
+        const newFile = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: file.name, dataUrl: ev.target.result, type: file.type, amount: "", purpose: "", date: new Date().toLocaleDateString("de-AT") };
         // funktionales Update: parallele Uploads überschreiben sich nicht mehr
         onChange((prev) => [...prev, newFile]);
       };
@@ -984,11 +984,13 @@ function RessortPage({
   const [saveError, setSaveError] = useState("");
   const [saving, setSaving] = useState(false);
 
-  // Firestore erlaubt max. 1 MiB pro Dokument. Belege werden als Base64 im
-  // Dokument abgelegt, daher hier die Groesse pruefen.
+  // Firestore erlaubt max. 1 MiB pro Dokument. Jeder Beleg liegt in einem
+  // eigenen Dokument, das Limit gilt also pro Beleg - nicht fuer alle zusammen.
   const FIRESTORE_LIMIT = 1048576;
-  const payloadSize = localFiles.reduce((s, f) => s + (f.dataUrl ? f.dataUrl.length : 0) + 200, 0);
-  const tooLarge = payloadSize > FIRESTORE_LIMIT * 0.9;
+  const fileSize = (f) => (f.dataUrl ? f.dataUrl.length : 0) + 300;
+  const oversizedFiles = localFiles.filter((f) => fileSize(f) > FIRESTORE_LIMIT * 0.95);
+  const tooLarge = oversizedFiles.length > 0;
+  const totalSize = localFiles.reduce((sum, f) => sum + fileSize(f), 0);
 
   const saveFiles = async () => {
     setSaveError("");
@@ -999,8 +1001,8 @@ function RessortPage({
     } catch (e) {
       console.error(e);
       setSaveError(
-        payloadSize > FIRESTORE_LIMIT
-          ? "Die Belege sind zusammen zu gross fuer die Datenbank (Grenze 1 MB pro Ressort). Entferne einen Beleg oder lade eine kleinere Datei hoch."
+        tooLarge
+          ? `Diese Datei ist zu gross: ${oversizedFiles.map((f) => f.name).join(", ")}. Pro Beleg sind rund 750 KB moeglich.`
           : "Speichern fehlgeschlagen: " + (e && e.message ? e.message : String(e))
       );
     } finally {
@@ -1128,13 +1130,13 @@ function RessortPage({
               {dirty
                 ? <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>⚠️ Ungespeicherte Änderungen</span>
                 : <span style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✅ Gespeichert</span>}
-              <span style={{ fontSize: 11, color: tooLarge ? "#ef4444" : "#9ca3af" }}>
-                Speicherbedarf: {(payloadSize / 1048576).toFixed(2)} MB von 1,00 MB
+              <span style={{ fontSize: 11, color: "#9ca3af" }}>
+                {localFiles.length} Beleg{localFiles.length !== 1 ? "e" : ""} · {(totalSize / 1048576).toFixed(2)} MB gesamt
               </span>
             </div>
             {tooLarge && !saveError && (
               <p style={{ color: "#ef4444", fontSize: 13, marginTop: 8, fontWeight: 600 }}>
-                ⚠️ Das Speicherlimit von 1 MB pro Ressort ist fast erreicht. Weitere Belege lassen sich nicht sichern.
+                ⚠️ Zu gross zum Speichern: {oversizedFiles.map((f) => f.name).join(", ")}. Pro Beleg sind rund 750 KB moeglich.
               </p>
             )}
             {saveError && (
@@ -1221,9 +1223,25 @@ export default function App() {
         } else {
           setMilestones(msSnap.docs.map((d) => ({ ...d.data(), id: d.id })));
         }
+        // Belege liegen jetzt einzeln unter ressortFiles/<ressort>/files/<belegId>.
+        // Aeltere Daten stehen noch als Array im Ressort-Dokument und werden
+        // weiterhin gelesen, damit nichts verloren geht.
         const rfSnap = await getDocs(collection(db, "ressortFiles"));
         const rf = {};
-        rfSnap.docs.forEach((d) => { rf[d.id] = d.data().files || []; });
+        for (const rDoc of rfSnap.docs) {
+          const legacy = rDoc.data().files || [];
+          const filesSnap = await getDocs(collection(db, "ressortFiles", rDoc.id, "files"));
+          const single = filesSnap.docs.map((d) => ({ ...d.data(), id: d.id }));
+          const seen = new Set(single.map((f) => f.name + "|" + f.date));
+          const merged = [...single, ...legacy.filter((f) => !seen.has(f.name + "|" + f.date))];
+          rf[rDoc.id] = merged;
+        }
+        // Ressorts, die noch gar kein Dokument haben, koennen trotzdem Belege besitzen
+        for (const r of (configDoc.exists() ? { ...INIT_CONFIG, ...configDoc.data() } : INIT_CONFIG).ressorts) {
+          if (rf[r.id]) continue;
+          const filesSnap = await getDocs(collection(db, "ressortFiles", r.id, "files"));
+          if (!filesSnap.empty) rf[r.id] = filesSnap.docs.map((d) => ({ ...d.data(), id: d.id }));
+        }
         setRessortFiles(rf);
         setDbStatus("connected");
       } catch (e) {
@@ -1289,10 +1307,32 @@ export default function App() {
   };
 
   const updateRessortFiles = async (ressortId, files) => {
-    // Erst schreiben, dann lokalen State aktualisieren - so bleibt bei einem
-    // Fehler sichtbar, dass nichts gespeichert wurde.
-    await setDoc(doc(db, "ressortFiles", ressortId), { files });
-    setRessortFiles((prev) => ({ ...prev, [ressortId]: files }));
+    // Jeder Beleg wird als eigenes Dokument gespeichert. Dadurch gilt das
+    // 1-MB-Limit von Firestore pro Beleg statt fuer das ganze Ressort.
+    const withIds = files.map((f, i) => ({
+      ...f,
+      id: f.id || `${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
+    }));
+
+    const previous = ressortFiles[ressortId] || [];
+    const keptIds = new Set(withIds.map((f) => f.id));
+
+    // Entfernte Belege loeschen
+    for (const old of previous) {
+      if (old.id && !keptIds.has(old.id)) {
+        await deleteDoc(doc(db, "ressortFiles", ressortId, "files", String(old.id)));
+      }
+    }
+
+    // Alle aktuellen Belege schreiben
+    for (const f of withIds) {
+      await setDoc(doc(db, "ressortFiles", ressortId, "files", String(f.id)), f);
+    }
+
+    // Altes Sammel-Dokument leeren, damit Belege nicht doppelt erscheinen
+    await setDoc(doc(db, "ressortFiles", ressortId), { files: [] });
+
+    setRessortFiles((prev) => ({ ...prev, [ressortId]: withIds }));
   };
 
   const navigateToRessort = (ressortId) => {
