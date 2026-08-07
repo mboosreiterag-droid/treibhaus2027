@@ -86,6 +86,8 @@ const S = {
   badge: (color) => ({ background: color + "22", color: color, borderRadius: 99, padding: "2px 10px", fontSize: 11, fontWeight: 700 }),
 };
 
+const APP_VERSION = "v3-belege";
+
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
 
@@ -1352,6 +1354,7 @@ export default function App() {
         <span style={{ ...S.navTitle, flex: "1 0 auto", display: "flex", alignItems: "center", gap: 8 }}>
           <img src={getLogo(config)} alt="Logo" style={{ width: 22, height: 22, objectFit: "contain" }} onError={(e) => { e.currentTarget.style.display = "none"; }} />
           {config.siteTitle}
+          <span style={{ fontSize: 10, color: "#6366f1", fontWeight: 600 }}>{APP_VERSION}</span>
         </span>
 
         {/* Fixed nav items */}
