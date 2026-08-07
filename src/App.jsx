@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from "react";
 import { initializeApp } from "firebase/app";
 import {
@@ -178,16 +177,16 @@ function RessortDropdown({ ressorts, activePage, activeRessort, onSelect, logoIm
   );
 }
 
-function ConfirmModal({ message, onConfirm, onCancel }) {
+function ConfirmModal({ message, onConfirm, onCancel, title, icon, confirmLabel, cancelLabel, confirmColor }) {
   return (
     <div style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", zIndex: 9999, display: "flex", alignItems: "center", justifyContent: "center" }}>
       <div style={{ background: "#fff", borderRadius: 16, padding: "32px 28px", maxWidth: 360, width: "90%", boxShadow: "0 8px 32px rgba(0,0,0,0.18)", textAlign: "center" }}>
-        <div style={{ fontSize: 40, marginBottom: 12 }}>🗑️</div>
-        <h3 style={{ margin: "0 0 10px", color: "#1e293b", fontWeight: 800 }}>Wirklich löschen?</h3>
+        <div style={{ fontSize: 40, marginBottom: 12 }}>{icon || "🗑️"}</div>
+        <h3 style={{ margin: "0 0 10px", color: "#1e293b", fontWeight: 800 }}>{title || "Wirklich löschen?"}</h3>
         <p style={{ color: "#6b7280", fontSize: 14, marginBottom: 24 }}>{message || "Dieser Eintrag wird unwiderruflich gelöscht."}</p>
         <div style={{ display: "flex", gap: 12, justifyContent: "center" }}>
-          <button style={{ background: "#ef4444", color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onConfirm}>Ja, löschen</button>
-          <button style={{ background: "#e2e8f0", color: "#374151", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onCancel}>Abbrechen</button>
+          <button style={{ background: confirmColor || "#ef4444", color: "#fff", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onConfirm}>{confirmLabel || "Ja, löschen"}</button>
+          <button style={{ background: "#e2e8f0", color: "#374151", border: "none", borderRadius: 8, padding: "10px 28px", fontWeight: 700, fontSize: 14, cursor: "pointer" }} onClick={onCancel}>{cancelLabel || "Abbrechen"}</button>
         </div>
       </div>
     </div>
@@ -270,14 +269,16 @@ function FileUpload({ files, onChange, label }) {
     selected.forEach((file) => {
       const reader = new FileReader();
       reader.onload = (ev) => {
-        onChange([...files, { name: file.name, dataUrl: ev.target.result, type: file.type, amount: "", purpose: "", date: new Date().toLocaleDateString("de-AT") }]);
+        const newFile = { name: file.name, dataUrl: ev.target.result, type: file.type, amount: "", purpose: "", date: new Date().toLocaleDateString("de-AT") };
+        // funktionales Update: parallele Uploads überschreiben sich nicht mehr
+        onChange((prev) => [...prev, newFile]);
       };
       reader.readAsDataURL(file);
     });
     e.target.value = "";
   };
-  const removeFile = (i) => onChange(files.filter((_, idx) => idx !== i));
-  const updateField = (i, field, value) => onChange(files.map((f, idx) => (idx === i ? { ...f, [field]: value } : f)));
+  const removeFile = (i) => onChange((prev) => prev.filter((_, idx) => idx !== i));
+  const updateField = (i, field, value) => onChange((prev) => prev.map((f, idx) => (idx === i ? { ...f, [field]: value } : f)));
   return (
     <div style={{ marginTop: 8 }}>
       <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 10 }}>
@@ -931,7 +932,7 @@ function HomePage({ config, milestones, ressortFiles, premiereDays, navigateToRe
 
 function RessortPage({
   config, milestones, ressortFiles, updateRessortFiles,
-  activeRessort, setPage,
+  activeRessort, setPage, requestLeave, reportUnsaved,
   expandedId, setExpandedId,
   editingMilestone, setEditingMilestone,
   addingMilestone, setAddingMilestone,
@@ -947,6 +948,40 @@ function RessortPage({
   saveMilestone, deleteMilestone, addMilestone,
 }) {
   const ressort = config.ressorts.find((r) => r.id === activeRessort);
+
+  // Lokaler Zwischenspeicher für Belege dieses Ressorts
+  const [localFiles, setLocalFiles] = useState(ressortFiles[activeRessort] || []);
+  const [dirty, setDirty] = useState(false);
+
+  useEffect(() => {
+    setLocalFiles(ressortFiles[activeRessort] || []);
+    setDirty(false);
+  }, [activeRessort, ressortFiles]);
+
+  // Ungespeicherte Änderungen an App melden (für Navigationswarnung)
+  useEffect(() => {
+    reportUnsaved(dirty);
+    return () => reportUnsaved(false);
+  }, [dirty, reportUnsaved]);
+
+  // Warnung beim Schließen/Neuladen des Browser-Tabs
+  useEffect(() => {
+    if (!dirty) return;
+    const handler = (e) => { e.preventDefault(); e.returnValue = ""; };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [dirty]);
+
+  const handleLocalChange = (updater) => {
+    setLocalFiles((prev) => (typeof updater === "function" ? updater(prev) : updater));
+    setDirty(true);
+  };
+
+  const saveFiles = async () => {
+    await updateRessortFiles(activeRessort, localFiles);
+    setDirty(false);
+  };
+
   if (!ressort) return <div style={S.section}>Ressort nicht gefunden.</div>;
   const filtered = milestones.filter((m) => {
     if (m.ressort !== activeRessort) return false;
@@ -958,14 +993,13 @@ function RessortPage({
   const allItems = milestones.filter((m) => m.ressort === activeRessort);
   const ressortDone = allItems.filter((m) => m.status === "Erledigt").length;
   const ressortPct = allItems.length ? Math.round((ressortDone / allItems.length) * 100) : 0;
-  const files = ressortFiles[activeRessort] || [];
-  const used = files.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
+  const used = localFiles.reduce((s, f) => s + (parseFloat(f.amount) || 0), 0);
   const available = (ressort.budget || 0) - used;
   const over = available < 0;
   return (
     <div style={S.section}>
       <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 14, flexWrap: "wrap" }}>
-        <button style={S.btn("#6b7280")} onClick={() => setPage("home")}>← Zurück</button>
+        <button style={S.btn("#6b7280")} onClick={() => requestLeave(() => setPage("home"))}>← Zurück</button>
         <h2 style={{ margin: 0, fontWeight: 900, color: ressort.color }}>{ressort.label}</h2>
         {ressort.verantwortlich && <span style={{ fontSize: 13, color: "#6b7280" }}>👤 {ressort.verantwortlich}</span>}
         <span style={{ fontSize: 13, color: "#6b7280" }}>{ressortDone}/{allItems.length} erledigt ({ressortPct}%)</span>
@@ -1060,7 +1094,13 @@ function RessortPage({
           </div>
           <div style={S.card}>
             <h3 style={{ margin: "0 0 10px" }}>📎 Rechnungen & Belege</h3>
-            <FileUpload files={files} onChange={(f) => updateRessortFiles(activeRessort, f)} label="Belege hochladen" />
+            <FileUpload files={localFiles} onChange={handleLocalChange} label="Belege hochladen" />
+            <div style={{ display: "flex", alignItems: "center", gap: 12, marginTop: 14, flexWrap: "wrap" }}>
+              <button style={{ ...S.btn(dirty ? "#10b981" : "#94a3b8"), cursor: dirty ? "pointer" : "default" }} onClick={saveFiles} disabled={!dirty}>💾 Speichern</button>
+              {dirty
+                ? <span style={{ fontSize: 12, color: "#f59e0b", fontWeight: 600 }}>⚠️ Ungespeicherte Änderungen</span>
+                : <span style={{ fontSize: 12, color: "#10b981", fontWeight: 600 }}>✅ Gespeichert</span>}
+            </div>
           </div>
         </div>
       )}
@@ -1097,7 +1137,24 @@ export default function App() {
   const [platformUnlocked, setPlatformUnlocked] = useState(false);
   const [confirmModal, setConfirmModal] = useState(null);
 
-  const askConfirm = (message, onConfirm) => setConfirmModal({ message, onConfirm });
+  // Merker für ungespeicherte Belege im aktuellen Ressort
+  const unsavedFilesRef = useRef(false);
+  const reportUnsaved = React.useCallback((val) => { unsavedFilesRef.current = val; }, []);
+
+  const askConfirm = (message, onConfirm, opts = {}) => setConfirmModal({ message, onConfirm, ...opts });
+
+  // Navigation mit Warnung bei ungespeicherten Belegen
+  const requestLeave = (action) => {
+    if (unsavedFilesRef.current) {
+      askConfirm(
+        "Im Bereich „Budget & Belege" gibt es noch nicht gespeicherte Änderungen. Beim Verlassen gehen sie verloren.",
+        () => { setConfirmModal(null); unsavedFilesRef.current = false; action(); },
+        { title: "Seite verlassen?", icon: "⚠️", confirmLabel: "Verlassen", cancelLabel: "Hier bleiben", confirmColor: "#f59e0b" }
+      );
+    } else {
+      action();
+    }
+  };
 
   useEffect(() => {
     const loadData = async () => {
@@ -1198,15 +1255,19 @@ export default function App() {
   };
 
   const navigateToRessort = (ressortId) => {
-    setActiveRessort(ressortId);
-    setPage("ressort");
-    setRessortTab("meilensteine");
-    setFilterStatus("Alle");
-    setFilterPriority("Alle");
-    setSearchText("");
-    setEditingMilestone(null);
-    setAddingMilestone(false);
+    requestLeave(() => {
+      setActiveRessort(ressortId);
+      setPage("ressort");
+      setRessortTab("meilensteine");
+      setFilterStatus("Alle");
+      setFilterPriority("Alle");
+      setSearchText("");
+      setEditingMilestone(null);
+      setAddingMilestone(false);
+    });
   };
+
+  const navigateToPage = (nextPage) => requestLeave(() => setPage(nextPage));
 
   if (loading) {
     return (
@@ -1236,6 +1297,11 @@ export default function App() {
       {confirmModal && (
         <ConfirmModal
           message={confirmModal.message}
+          title={confirmModal.title}
+          icon={confirmModal.icon}
+          confirmLabel={confirmModal.confirmLabel}
+          cancelLabel={confirmModal.cancelLabel}
+          confirmColor={confirmModal.confirmColor}
           onConfirm={confirmModal.onConfirm}
           onCancel={() => setConfirmModal(null)}
         />
@@ -1250,8 +1316,8 @@ export default function App() {
         </span>
 
         {/* Fixed nav items */}
-        <button style={S.navBtn(page === "home")} onClick={() => setPage("home")}>🏠 Übersicht</button>
-        <button style={S.navBtn(page === "meineaufgaben")} onClick={() => setPage("meineaufgaben")}>👤 Meine Aufgaben</button>
+        <button style={S.navBtn(page === "home")} onClick={() => navigateToPage("home")}>🏠 Übersicht</button>
+        <button style={S.navBtn(page === "meineaufgaben")} onClick={() => navigateToPage("meineaufgaben")}>👤 Meine Aufgaben</button>
 
         {/* Ressort dropdown */}
         <RessortDropdown
@@ -1262,7 +1328,7 @@ export default function App() {
           logoImage={getLogo(config)}
         />
 
-        <button style={S.navBtn(page === "admin")} onClick={() => setPage("admin")}>⚙️ Admin</button>
+        <button style={S.navBtn(page === "admin")} onClick={() => navigateToPage("admin")}>⚙️ Admin</button>
       </nav>
 
       {page === "home" && (
@@ -1274,7 +1340,7 @@ export default function App() {
       {page === "ressort" && (
         <RessortPage
           config={config} milestones={milestones} ressortFiles={ressortFiles} updateRessortFiles={updateRessortFiles}
-          activeRessort={activeRessort} setPage={setPage}
+          activeRessort={activeRessort} setPage={setPage} requestLeave={requestLeave} reportUnsaved={reportUnsaved}
           expandedId={expandedId} setExpandedId={setExpandedId}
           editingMilestone={editingMilestone} setEditingMilestone={setEditingMilestone}
           addingMilestone={addingMilestone} setAddingMilestone={setAddingMilestone}
@@ -1300,7 +1366,7 @@ export default function App() {
           addNewRessort={addNewRessort}
           milestones={milestones} config={config} ressortFiles={ressortFiles}
           navigateToRessort={navigateToRessort}
-          setEditingMilestone={setEditingMilestone} deleteMilestone={deleteMilestone}
+          deleteMilestone={deleteMilestone}
           setAdminUnlocked={setAdminUnlocked} setAdminPwError={setAdminPwError}
           dbStatus={dbStatus}
         />
