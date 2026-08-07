@@ -86,7 +86,7 @@ const S = {
   badge: (color) => ({ background: color + "22", color: color, borderRadius: 99, padding: "2px 10px", fontSize: 11, fontWeight: 700 }),
 };
 
-const APP_VERSION = "v4-belege";
+const APP_VERSION = "v5-belege";
 
 const PRIORITY_COLOR = { Niedrig: "#10b981", Mittel: "#f59e0b", Hoch: "#ef4444" };
 const STATUS_COLOR = { Offen: "#6b7280", "In Bearbeitung": "#3b82f6", Erledigt: "#10b981" };
@@ -266,12 +266,51 @@ function HeaderImageUpload({ currentImage, onChange }) {
 
 function FileUpload({ files, onChange, label }) {
   const inputRef = useRef();
+  // Bilder werden vor dem Speichern verkleinert, damit jeder Beleg klein bleibt.
+  const shrinkImage = (dataUrl) =>
+    new Promise((resolve) => {
+      const img = new Image();
+      img.onload = () => {
+        const MAX = 1400;
+        let { width, height } = img;
+        if (width > MAX || height > MAX) {
+          const factor = Math.min(MAX / width, MAX / height);
+          width = Math.round(width * factor);
+          height = Math.round(height * factor);
+        }
+        const canvas = document.createElement("canvas");
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext("2d");
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, width, height);
+        ctx.drawImage(img, 0, 0, width, height);
+        let out = canvas.toDataURL("image/jpeg", 0.72);
+        if (out.length > 600000) out = canvas.toDataURL("image/jpeg", 0.5);
+        resolve(out.length < dataUrl.length ? out : dataUrl);
+      };
+      img.onerror = () => resolve(dataUrl);
+      img.src = dataUrl;
+    });
+
   const handleFiles = (e) => {
     const selected = Array.from(e.target.files);
     selected.forEach((file) => {
       const reader = new FileReader();
-      reader.onload = (ev) => {
-        const newFile = { id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, name: file.name, dataUrl: ev.target.result, type: file.type, amount: "", purpose: "", date: new Date().toLocaleDateString("de-AT") };
+      reader.onload = async (ev) => {
+        let dataUrl = ev.target.result;
+        if (file.type && file.type.startsWith("image/")) {
+          try { dataUrl = await shrinkImage(dataUrl); } catch (err) { console.error(err); }
+        }
+        const newFile = {
+          id: `${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          name: file.name,
+          dataUrl,
+          type: file.type || "",
+          amount: "",
+          purpose: "",
+          date: new Date().toLocaleDateString("de-AT"),
+        };
         // funktionales Update: parallele Uploads überschreiben sich nicht mehr
         onChange((prev) => [...prev, newFile]);
       };
@@ -294,6 +333,9 @@ function FileUpload({ files, onChange, label }) {
           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8 }}>
             <span style={{ fontSize: 13, flex: 1, fontWeight: 600, color: "#374151" }}>📎 {f.name}</span>
             <span style={{ fontSize: 11, color: "#9ca3af" }}>{f.date}</span>
+            <span style={{ fontSize: 11, color: (f.dataUrl ? f.dataUrl.length : 0) > 900000 ? "#ef4444" : "#9ca3af", fontWeight: (f.dataUrl ? f.dataUrl.length : 0) > 900000 ? 700 : 400 }}>
+              {(((f.dataUrl ? f.dataUrl.length : 0) / 1024)).toFixed(0)} KB
+            </span>
             <a href={f.dataUrl} download={f.name} style={{ fontSize: 14, textDecoration: "none" }} title="Herunterladen">⬇️</a>
             <button onClick={() => removeFile(i)} style={{ background: "none", border: "none", cursor: "pointer", color: "#ef4444", fontSize: 14, padding: 0 }}>✕</button>
           </div>
@@ -1309,10 +1351,16 @@ export default function App() {
   const updateRessortFiles = async (ressortId, files) => {
     // Jeder Beleg wird als eigenes Dokument gespeichert. Dadurch gilt das
     // 1-MB-Limit von Firestore pro Beleg statt fuer das ganze Ressort.
-    const withIds = files.map((f, i) => ({
-      ...f,
-      id: f.id || `${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`,
-    }));
+    const clean = (f, i) => ({
+      id: String(f.id || `${Date.now()}_${i}_${Math.random().toString(36).slice(2, 8)}`),
+      name: String(f.name || "Beleg"),
+      dataUrl: String(f.dataUrl || ""),
+      type: String(f.type || ""),
+      amount: f.amount === undefined || f.amount === null ? "" : String(f.amount),
+      purpose: String(f.purpose || ""),
+      date: String(f.date || new Date().toLocaleDateString("de-AT")),
+    });
+    const withIds = files.map(clean);
 
     const previous = ressortFiles[ressortId] || [];
     const keptIds = new Set(withIds.map((f) => f.id));
@@ -1320,19 +1368,39 @@ export default function App() {
     // Entfernte Belege loeschen
     for (const old of previous) {
       if (old.id && !keptIds.has(old.id)) {
-        await deleteDoc(doc(db, "ressortFiles", ressortId, "files", String(old.id)));
+        try {
+          await deleteDoc(doc(db, "ressortFiles", ressortId, "files", String(old.id)));
+        } catch (err) {
+          console.error("Loeschen fehlgeschlagen", old.name, err);
+        }
       }
     }
 
-    // Alle aktuellen Belege schreiben
+    // Belege einzeln schreiben - ein Fehler stoppt nicht die uebrigen
+    const failed = [];
+    const saved = [];
     for (const f of withIds) {
-      await setDoc(doc(db, "ressortFiles", ressortId, "files", String(f.id)), f);
+      try {
+        await setDoc(doc(db, "ressortFiles", ressortId, "files", f.id), f);
+        saved.push(f);
+      } catch (err) {
+        console.error("Beleg konnte nicht gespeichert werden:", f.name, err);
+        failed.push(`${f.name} (${Math.round((f.dataUrl.length || 0) / 1024)} KB): ${err && err.message ? err.message : err}`);
+      }
     }
 
     // Altes Sammel-Dokument leeren, damit Belege nicht doppelt erscheinen
-    await setDoc(doc(db, "ressortFiles", ressortId), { files: [] });
+    try {
+      await setDoc(doc(db, "ressortFiles", ressortId), { files: [] });
+    } catch (err) {
+      console.error(err);
+    }
 
-    setRessortFiles((prev) => ({ ...prev, [ressortId]: withIds }));
+    setRessortFiles((prev) => ({ ...prev, [ressortId]: saved }));
+
+    if (failed.length > 0) {
+      throw new Error("Diese Belege wurden nicht gespeichert: " + failed.join(" | "));
+    }
   };
 
   const navigateToRessort = (ressortId) => {
